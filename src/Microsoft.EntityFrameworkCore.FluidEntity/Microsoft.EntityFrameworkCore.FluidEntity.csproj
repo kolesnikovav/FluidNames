@@ -1,13 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <PackageId>FluidNames</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Aleksandr Kolesnikov</Authors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>Microsoft.EntityFrameworkCore.FluidEntity</AssemblyName>
+    <PackageTags>ef-core;extention;fluid names</PackageTags>
+    <PackageProjectUrl>https://github.com/kolesnikovav/FluidNames</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/kolesnikovav/FluidNames.git</RepositoryUrl>        
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" Version="2019.1.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.2" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="3.1.2" />
   </ItemGroup>
-
 </Project>

@@ -77,6 +77,7 @@ namespace Microsoft.EntityFrameworkCore
         /// Create fluid names for each entity and field.
         /// </summary>
         /// <param name="modelBuilder">The <see cref="ModelBuilder"/> to enable fluid names feature.</param>
+        /// <param name="context">The <see cref="DbContext"/> Instance of you DBContext to be configured.</param>
         /// <returns>The <see cref="ModelBuilder"/> had enabled fluid names feature.</returns>
         public static ModelBuilder CreateFluidNames(this ModelBuilder modelBuilder, DbContext context)
         {
