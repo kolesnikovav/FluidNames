@@ -8,7 +8,7 @@ This library allow you set start symblos for tables and fields and create unique
 
 1. Install FluidNames Package
 
-Run the following command in the `Package Manager Console` to install Microsoft.EntityFrameworkCore.FluidNames
+Run the following command in the `Package Manager Console` to install FluidNames
 
 `PM> Install-Package FluidNames`
 
