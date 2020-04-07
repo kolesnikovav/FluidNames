@@ -15,7 +15,9 @@ namespace Microsoft.EntityFrameworkCore
         {
             internal Type EntityType {get;set;}
             internal string EntityTableName {get;set;}
+            internal bool EntityHasNoBaseType {get;set;}
             internal Dictionary<string,string> TableFields {get;set;} = new Dictionary<string, string>();
+            internal Dictionary<string,string> EntityKeys {get;set;} = new Dictionary<string, string>();
         }
         internal static Dictionary<string,ModelDataNames> getEntities(DbContext context)
         {
@@ -25,6 +27,8 @@ namespace Microsoft.EntityFrameworkCore
             Type tFluidNameAttr = typeof(FluidNameAttribute);
             Type tFluidPropAttr = typeof(FluidPropertyNameAttribute);
             Type tNoFluidNameAttr = typeof(NoFluidNameAttribute);
+            Type tKeyPartAttr = typeof(KeyPartAttribute);
+            Type tNoBaseTypeAttr = typeof(NoBaseTypeAttribute);
             // enumerate all DBSet<> (entity)
             int k = 1;
             foreach( var prop in allDBProps.Where(p => p.PropertyType.IsGenericType))
@@ -33,16 +37,22 @@ namespace Microsoft.EntityFrameworkCore
                 if (prop.PropertyType.IsEquivalentTo(genericDBSetType))
                 {
                     Type entityType = prop.PropertyType.GenericTypeArguments[0];
-                    var FluidName = entityType.GetCustomAttributesData().Where(v => v.AttributeType == tFluidNameAttr).FirstOrDefault();
-                    var FluidNameProp = entityType.GetCustomAttributesData().Where(v => v.AttributeType == tFluidPropAttr).FirstOrDefault();
+                    var entityDescribtor = new ModelDataNames();
+                    entityDescribtor.EntityType = entityType;
+                    if (entityType.GetCustomAttribute(tNoBaseTypeAttr) != null)
+                    {
+                        entityDescribtor.EntityHasNoBaseType = true;
+                    }
+                    var FluidName = entityType.GetCustomAttribute(tFluidNameAttr);
+                    var FluidNameProp = entityType.GetCustomAttribute(tFluidPropAttr);
                     if (FluidName != null)
                     {
-                        string fname = (FluidName.ConstructorArguments[0].Value as string);
-                        string fnameProp = (FluidNameProp.ConstructorArguments[0].Value as string);
-                        var entityDescribtor = new ModelDataNames();
+                        string fname = (FluidName as FluidNameAttribute).StartsWith;
+                        string fnameProp = (FluidNameProp == null) ? "" : (FluidNameProp as FluidPropertyNameAttribute).StartsWith;
+                        
                         if (!String.IsNullOrWhiteSpace(fname))
                         {
-                            entityDescribtor.EntityType = entityType;
+                            
                             entityDescribtor.EntityTableName = fname.ToUpper()+ k.ToString();
                             k++;
                             if (!String.IsNullOrWhiteSpace(fnameProp))
@@ -66,9 +76,18 @@ namespace Microsoft.EntityFrameworkCore
                                 }
                                 entityDescribtor.TableFields = props;
                             }
-                            res.Add(prop.Name,entityDescribtor);
                         }
                     }
+                    // KeyPart attribute proccessing!
+                    foreach( var currentProp in entityType.GetProperties())
+                    {
+                        var IsPropertyPartOfKey = currentProp.GetCustomAttributesData().Where(v => v.AttributeType == tKeyPartAttr).FirstOrDefault();
+                        if (IsPropertyPartOfKey != null)
+                        {
+                            entityDescribtor.EntityKeys.Add(currentProp.Name, entityType.Name);
+                        }
+                    }
+                    res.Add(prop.Name,entityDescribtor);
                 }
             }         
             return res;
@@ -93,12 +112,25 @@ namespace Microsoft.EntityFrameworkCore
             {
                 MethodInfo EntityBuilderMethod = entityBuilderMethod.MakeGenericMethod(new Type[] { entity.Value.EntityType });
                 var eB = EntityBuilderMethod.Invoke(modelBuilder, null);
-                eB = RelationalEntityTypeBuilderExtensions.ToTable(eB as EntityTypeBuilder, entity.Value.EntityTableName);
-                Type eBGenericType = typeof(EntityTypeBuilder<>).MakeGenericType(new Type[] {entity.Value.EntityType});
-                MethodInfo mi = eBGenericType.GetMethods().Where(v => v.Name == "Property" && !v.IsGenericMethod).FirstOrDefault();                
+                if (!String.IsNullOrWhiteSpace(entity.Value.EntityTableName))
+                {
+                    eB = RelationalEntityTypeBuilderExtensions.ToTable(eB as EntityTypeBuilder, entity.Value.EntityTableName);
+                }
+                if (entity.Value.EntityHasNoBaseType)
+                {
+                    (eB as EntityTypeBuilder).HasBaseType((Type)null);
+                }
+                // multipart key
+                if (entity.Value.EntityKeys.Count > 0)
+                {
+                    (eB as EntityTypeBuilder).HasKey(entity.Value.EntityKeys.Keys.ToArray());
+                }
+               
                 foreach(var pName in entity.Value.TableFields)
                 {
-                    var pBuilder = mi.Invoke(eB, new object[] {pName.Key});
+                    Type eBGenericType = typeof(EntityTypeBuilder<>).MakeGenericType(new Type[] { entity.Value.EntityType });
+                    MethodInfo mi = eBGenericType.GetMethods().Where(v => v.Name == "Property" && !v.IsGenericMethod).FirstOrDefault();
+                    var pBuilder = mi.Invoke(eB, new object[] { pName.Key });
                     pBuilder = RelationalPropertyBuilderExtensions.HasColumnName(pBuilder as PropertyBuilder, pName.Value);
                 }
             }
