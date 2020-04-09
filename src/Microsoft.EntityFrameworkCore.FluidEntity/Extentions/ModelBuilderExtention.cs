@@ -115,6 +115,9 @@ namespace Microsoft.EntityFrameworkCore
                 if (!String.IsNullOrWhiteSpace(entity.Value.EntityTableName))
                 {
                     eB = RelationalEntityTypeBuilderExtensions.ToTable(eB as EntityTypeBuilder, entity.Value.EntityTableName);
+                    string comment = (eB as EntityTypeBuilder).Metadata.GetComment();
+                    comment += String.IsNullOrWhiteSpace(comment) ? " ": "";
+                    (eB as EntityTypeBuilder).HasComment(comment +  entity.Key);
                 }
                 if (entity.Value.EntityHasNoBaseType)
                 {
@@ -131,7 +134,7 @@ namespace Microsoft.EntityFrameworkCore
                     Type eBGenericType = typeof(EntityTypeBuilder<>).MakeGenericType(new Type[] { entity.Value.EntityType });
                     MethodInfo mi = eBGenericType.GetMethods().Where(v => v.Name == "Property" && !v.IsGenericMethod).FirstOrDefault();
                     var pBuilder = mi.Invoke(eB, new object[] { pName.Key });
-                    pBuilder = RelationalPropertyBuilderExtensions.HasColumnName(pBuilder as PropertyBuilder, pName.Value);
+                    pBuilder = RelationalPropertyBuilderExtensions.HasColumnName(pBuilder as PropertyBuilder, pName.Value).HasComment(pName.Key);
                 }
             }
             return modelBuilder;
