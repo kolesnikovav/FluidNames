@@ -78,6 +78,14 @@ This is equivalent Fluent API method, but it can be done at top hierarchy level
     modelBuilder.Entity<>().HasBaseType((Type)null)
 ```
 
+```csharp
+    [Index("IDX_Field1", true)] // designate that property is the part of index
+```
+This is equivalent Fluent API method, but it can be done at top hierarchy level
+```csharp
+    modelBuilder.Entity<>().HasIndex(...).IsUnique()
+```
+
 
 
 

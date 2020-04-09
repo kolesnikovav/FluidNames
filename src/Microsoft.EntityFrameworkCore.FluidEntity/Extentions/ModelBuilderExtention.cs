@@ -11,6 +11,12 @@ namespace Microsoft.EntityFrameworkCore
     /// </summary>
     public static class ModelBuilderExtensions
     {
+        internal class ModelIndex
+        {  
+            internal bool IsUnique {get;set;} = false;
+            internal List<string> Properties {get;set;} = new List<string>();
+        }      
+
         internal class ModelDataNames
         {
             internal Type EntityType {get;set;}
@@ -18,6 +24,7 @@ namespace Microsoft.EntityFrameworkCore
             internal bool EntityHasNoBaseType {get;set;}
             internal Dictionary<string,string> TableFields {get;set;} = new Dictionary<string, string>();
             internal Dictionary<string,string> EntityKeys {get;set;} = new Dictionary<string, string>();
+            internal Dictionary<string,ModelIndex> Indexes {get;set;} = new Dictionary<string, ModelIndex>();
         }
         internal static Dictionary<string,ModelDataNames> getEntities(DbContext context)
         {
@@ -29,6 +36,7 @@ namespace Microsoft.EntityFrameworkCore
             Type tNoFluidNameAttr = typeof(NoFluidNameAttribute);
             Type tKeyPartAttr = typeof(KeyPartAttribute);
             Type tNoBaseTypeAttr = typeof(NoBaseTypeAttribute);
+            Type tIndexAttr = typeof(IndexAttribute);
             // enumerate all DBSet<> (entity)
             int k = 1;
             foreach( var prop in allDBProps.Where(p => p.PropertyType.IsGenericType))
@@ -78,7 +86,7 @@ namespace Microsoft.EntityFrameworkCore
                             }
                         }
                     }
-                    // KeyPart attribute proccessing!
+                    // KeyPart && Index attribute proccessing!
                     foreach( var currentProp in entityType.GetProperties())
                     {
                         var IsPropertyPartOfKey = currentProp.GetCustomAttributesData().Where(v => v.AttributeType == tKeyPartAttr).FirstOrDefault();
@@ -86,6 +94,25 @@ namespace Microsoft.EntityFrameworkCore
                         {
                             entityDescribtor.EntityKeys.Add(currentProp.Name, entityType.Name);
                         }
+                        var IndexProp = entityType.GetCustomAttribute(tIndexAttr);
+                        if (IndexProp != null)
+                        {
+                            ModelIndex mIdx = null;
+                            if (entityDescribtor.Indexes.TryGetValue((IndexProp as IndexAttribute).StartsWith, out mIdx))
+                            {
+                                mIdx.IsUnique = (IndexProp as IndexAttribute).IsUnique;
+                                mIdx.Properties.Add(currentProp.Name);
+                                entityDescribtor.Indexes[(IndexProp as IndexAttribute).StartsWith] = mIdx;
+                            }
+                            else 
+                            {
+                                mIdx = new ModelIndex();
+                                mIdx.IsUnique = (IndexProp as IndexAttribute).IsUnique;
+                                mIdx.Properties.Add(currentProp.Name);
+                                entityDescribtor.Indexes.Add((IndexProp as IndexAttribute).StartsWith, mIdx);
+                            }
+                            entityDescribtor.EntityKeys.Add(currentProp.Name, entityType.Name);
+                        }                        
                     }
                     res.Add(prop.Name,entityDescribtor);
                 }
@@ -116,7 +143,7 @@ namespace Microsoft.EntityFrameworkCore
                 {
                     eB = RelationalEntityTypeBuilderExtensions.ToTable(eB as EntityTypeBuilder, entity.Value.EntityTableName);
                     string comment = (eB as EntityTypeBuilder).Metadata.GetComment();
-                    comment += String.IsNullOrWhiteSpace(comment) ? " ": "";
+                    comment += String.IsNullOrWhiteSpace(comment) ? "": " ";
                     (eB as EntityTypeBuilder).HasComment(comment +  entity.Key);
                 }
                 if (entity.Value.EntityHasNoBaseType)
@@ -136,6 +163,11 @@ namespace Microsoft.EntityFrameworkCore
                     var pBuilder = mi.Invoke(eB, new object[] { pName.Key });
                     pBuilder = RelationalPropertyBuilderExtensions.HasColumnName(pBuilder as PropertyBuilder, pName.Value).HasComment(pName.Key);
                 }
+                // Indexes
+                foreach(var idx in entity.Value.Indexes)
+                {
+                    (eB as EntityTypeBuilder).HasIndex(idx.Value.Properties.ToArray()).HasName(idx.Key).IsUnique(idx.Value.IsUnique);
+                }                
             }
             return modelBuilder;
         }
