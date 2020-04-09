@@ -57,8 +57,27 @@ public class MyDBContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // create fluid names for you entities.
-        modelBuilder.CreateFluidNames( modelBuilder, this);
+        modelBuilder.CreateFluidNames( this);
     }
 }
 ```
+# Additional attributes
+```csharp
+    [KeyPart] // mark the property as a part of key
+```
+This is equivalent Fluent API method, but it can be done at top hierarchy level
+```csharp
+    modelBuilder.Entity<>().HasKey(v => new { v.ID, v.CODE})
+```
+
+```csharp
+    [NoBaseType] // equivalent Fluent API HasBaseType((Type)null) method
+```
+This is equivalent Fluent API method, but it can be done at top hierarchy level
+```csharp
+    modelBuilder.Entity<>().HasBaseType((Type)null)
+```
+
+
+
 
