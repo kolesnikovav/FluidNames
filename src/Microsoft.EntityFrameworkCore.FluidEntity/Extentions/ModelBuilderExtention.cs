@@ -94,7 +94,7 @@ namespace Microsoft.EntityFrameworkCore
                         {
                             entityDescribtor.EntityKeys.Add(currentProp.Name, entityType.Name);
                         }
-                        var IndexProp = entityType.GetCustomAttribute(tIndexAttr);
+                        var IndexProp = currentProp.GetCustomAttribute(tIndexAttr);
                         if (IndexProp != null)
                         {
                             ModelIndex mIdx = null;
