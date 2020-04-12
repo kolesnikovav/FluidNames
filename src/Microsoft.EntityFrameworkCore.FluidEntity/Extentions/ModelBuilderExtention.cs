@@ -1,7 +1,10 @@
 using System;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Reflection;
 
 namespace Microsoft.EntityFrameworkCore
@@ -26,6 +29,67 @@ namespace Microsoft.EntityFrameworkCore
             internal Dictionary<string,string> EntityKeys {get;set;} = new Dictionary<string, string>();
             internal Dictionary<string,ModelIndex> Indexes {get;set;} = new Dictionary<string, ModelIndex>();
         }
+        internal static bool GetKeyPropertyOfEntity(Type TModel, out Type clrType, out string propName)
+        {
+            clrType = null;
+            propName = null;
+            Type tKeyAttr = typeof(KeyAttribute);
+            foreach (var pInfo in TModel.GetProperties())
+            {
+                var a = pInfo.GetCustomAttribute(tKeyAttr);
+                if (a != null)
+                {
+                    clrType = pInfo.PropertyType;
+                    propName = pInfo.Name;
+                    return true;
+                }
+            }
+            return false;
+        }
+        internal static ValueConverter GetConverter(Type TModel, DbContext context, string nameDBSet )
+        {
+            Type TClr = null;
+            string KeyName = null;
+            if (!GetKeyPropertyOfEntity(TModel, out TClr, out KeyName)) return null;
+            Type tVConverter = typeof(ValueConverter<,>);
+            Type gVConverter  = tVConverter.MakeGenericType(new Type[] {TModel, TClr});
+            Type tFunc = typeof(Func<,>);
+            Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] {TModel, TClr});
+            Type tFuncCLRModel = tFunc.MakeGenericType(new Type[] {TClr, TModel});
+            Type tFuncModelFind = tFunc.MakeGenericType(new Type[] {TModel, typeof(bool)});
+            Type tIQueryable = typeof(IQueryable<>);
+            Type tIQueryableModel = tIQueryable.MakeGenericType(TModel);
+            //**** model - clr conversion ************
+            ParameterExpression parameterModel = Expression.Parameter(TModel, "v");
+            MemberExpression propertyModel = Expression.Property(parameterModel, KeyName);
+            var ExpressionModelCLR = Expression.Lambda(tFuncModelCLR, propertyModel, parameterModel); 
+            //**** clr - model conversion ************
+            ParameterExpression parameterModelFind = Expression.Parameter(TModel, "a");
+            MemberExpression propertyModelFind = Expression.Property(parameterModelFind, KeyName); 
+            ParameterExpression parameterClrFind = Expression.Parameter(TClr, "v");
+            Expression FindPredicate = Expression.Equal(propertyModelFind,parameterClrFind); 
+            var eFirstOrDefault = Expression.Lambda(tFuncModelFind, FindPredicate, new ParameterExpression[] {parameterModelFind});           
+            MethodInfo mFirstOrDefault = typeof(Queryable).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(v => v.Name == "FirstOrDefault" && v.GetParameters().Count() == 2).First();
+            MethodInfo mGFirstOrDefault = mFirstOrDefault.MakeGenericMethod(TModel); 
+            Expression constContext = Expression.Constant(context);
+            MemberExpression expressionDBSet = Expression.Property(constContext, nameDBSet);
+            List<ParameterExpression> p = new List<ParameterExpression>();
+            p.Add(parameterClrFind);            
+            Expression FindPredicateLambda = Expression.Lambda(FindPredicate,p );
+            MemberExpression propertyDBSet = Expression.Property(Expression.Constant(context), nameDBSet);
+            Expression callExpr = Expression.Call(
+                                    mGFirstOrDefault ,
+                                    new Expression[] {
+                                        propertyDBSet,
+                                        eFirstOrDefault
+                                    }
+                                );            
+            var ExpressionCLRModel = Expression.Lambda(callExpr,parameterClrFind);
+            var res = Activator.CreateInstance(gVConverter,new object[] {ExpressionModelCLR, ExpressionCLRModel, null});
+            return res as ValueConverter;
+
+        }
         internal static Dictionary<string,ModelDataNames> getEntities(DbContext context)
         {
             var res = new Dictionary<string,ModelDataNames>();
@@ -45,6 +109,11 @@ namespace Microsoft.EntityFrameworkCore
                 if (prop.PropertyType.IsEquivalentTo(genericDBSetType))
                 {
                     Type entityType = prop.PropertyType.GenericTypeArguments[0];
+
+                    var qq = GetConverter(entityType, context, prop.Name);
+
+
+
                     var entityDescribtor = new ModelDataNames();
                     entityDescribtor.EntityType = entityType;
                     if (entityType.GetCustomAttribute(tNoBaseTypeAttr) != null)
