@@ -72,11 +72,6 @@ namespace Microsoft.EntityFrameworkCore
             MethodInfo mFirstOrDefault = typeof(Queryable).GetMethods(BindingFlags.Public | BindingFlags.Static)
             .Where(v => v.Name == "FirstOrDefault" && v.GetParameters().Count() == 2).First();
             MethodInfo mGFirstOrDefault = mFirstOrDefault.MakeGenericMethod(TModel); 
-            Expression constContext = Expression.Constant(context);
-            MemberExpression expressionDBSet = Expression.Property(constContext, nameDBSet);
-            List<ParameterExpression> p = new List<ParameterExpression>();
-            p.Add(parameterClrFind);            
-            Expression FindPredicateLambda = Expression.Lambda(FindPredicate,p );
             MemberExpression propertyDBSet = Expression.Property(Expression.Constant(context), nameDBSet);
             Expression callExpr = Expression.Call(
                                     mGFirstOrDefault ,
