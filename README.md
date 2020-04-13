@@ -1,6 +1,24 @@
 # Why
 Some database providers doesn't allow long table, fields, keys names. If you have > 20 several entity types, manualy creating table/ field names may be tediously.
 This library allow you set start symblos for tables and fields and create unique fluid names for each entity.
+Anover feature is creating ``` ValueConverter ``` for each entities. This is used to create relation between Entity and CLR Type. For creation of ``` ValueConverter ``` Key property of Entity is used. With this feature, you can refference the property of entity to anover entity type directly.
+
+```csharp
+    public class AnimalOwner
+    {
+        [Key]
+        public Guid Id {get;set;}
+        public string Name {get;set;}
+    }
+    public class Dog
+    {
+        //... you code ...//
+        public AnimalOwner Owner {get;set;} // This is valid Type, because of ValueConverter is present!
+    }
+```
+You can disable autocreate ``` ValueConverter ``` for entity/property by setting ```[NoValueConverter]``` attribute.
+
+
 
 # How to use
 
