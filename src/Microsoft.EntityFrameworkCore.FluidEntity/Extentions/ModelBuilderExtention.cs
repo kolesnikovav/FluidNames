@@ -18,14 +18,23 @@ namespace Microsoft.EntityFrameworkCore
         {  
             internal bool IsUnique {get;set;} = false;
             internal List<string> Properties {get;set;} = new List<string>();
-        }      
+        }
+        internal class ModelFields
+        {  
+            internal string Name {get;set;}
+            internal Type Type {get;set;}
+            internal bool RenameField {get;set;} = false;
+            internal bool NoValueConverter {get;set;} = false;
+        }              
 
         internal class ModelDataNames
         {
             internal Type EntityType {get;set;}
+            internal ValueConverter ValueConverter {get;set;}
             internal string EntityTableName {get;set;}
+            internal bool RenameTable {get;set;} = false;
             internal bool EntityHasNoBaseType {get;set;}
-            internal Dictionary<string,string> TableFields {get;set;} = new Dictionary<string, string>();
+            internal Dictionary<string,ModelFields> TableFields {get;set;} = new Dictionary<string, ModelFields>();
             internal Dictionary<string,string> EntityKeys {get;set;} = new Dictionary<string, string>();
             internal Dictionary<string,ModelIndex> Indexes {get;set;} = new Dictionary<string, ModelIndex>();
         }
@@ -51,6 +60,7 @@ namespace Microsoft.EntityFrameworkCore
             Type TClr = null;
             string KeyName = null;
             if (!GetKeyPropertyOfEntity(TModel, out TClr, out KeyName)) return null;
+            if (TClr == TModel) return null;
             Type tVConverter = typeof(ValueConverter<,>);
             Type gVConverter  = tVConverter.MakeGenericType(new Type[] {TModel, TClr});
             Type tFunc = typeof(Func<,>);
@@ -96,6 +106,7 @@ namespace Microsoft.EntityFrameworkCore
             Type tKeyPartAttr = typeof(KeyPartAttribute);
             Type tNoBaseTypeAttr = typeof(NoBaseTypeAttribute);
             Type tIndexAttr = typeof(IndexAttribute);
+            Type tNoValueConverterAttr = typeof(NoValueConverterAttribute);
             // enumerate all DBSet<> (entity)
             int k = 1;
             foreach( var prop in allDBProps.Where(p => p.PropertyType.IsGenericType))
@@ -104,52 +115,67 @@ namespace Microsoft.EntityFrameworkCore
                 if (prop.PropertyType.IsEquivalentTo(genericDBSetType))
                 {
                     Type entityType = prop.PropertyType.GenericTypeArguments[0];
-
-                    var qq = GetConverter(entityType, context, prop.Name);
-
-
-
                     var entityDescribtor = new ModelDataNames();
                     entityDescribtor.EntityType = entityType;
+                    var NoValueConverter = entityType.GetCustomAttribute(tNoValueConverterAttr);
+                    if (entityType.GetCustomAttribute(tNoValueConverterAttr) == null)
+                    {
+                        try
+                        {
+                            entityDescribtor.ValueConverter = GetConverter(entityType, context, prop.Name);
+                        }
+                        catch(Exception e)
+                        {
+                            // TODO information!!!
+                        }
+                    }
                     if (entityType.GetCustomAttribute(tNoBaseTypeAttr) != null)
                     {
                         entityDescribtor.EntityHasNoBaseType = true;
                     }
                     var FluidName = entityType.GetCustomAttribute(tFluidNameAttr);
                     var FluidNameProp = entityType.GetCustomAttribute(tFluidPropAttr);
+                    string fname = null;
+                    string fnameProp = null;
                     if (FluidName != null)
                     {
-                        string fname = (FluidName as FluidNameAttribute).StartsWith;
-                        string fnameProp = (FluidNameProp == null) ? "" : (FluidNameProp as FluidPropertyNameAttribute).StartsWith;
-                        
+                        fname = (FluidName as FluidNameAttribute).StartsWith;
+                        fnameProp = (FluidNameProp == null) ? "" : (FluidNameProp as FluidPropertyNameAttribute).StartsWith;
                         if (!String.IsNullOrWhiteSpace(fname))
                         {
-                            
+                            entityDescribtor.RenameTable = true;
                             entityDescribtor.EntityTableName = fname.ToUpper()+ k.ToString();
-                            k++;
-                            if (!String.IsNullOrWhiteSpace(fnameProp))
-                            {
-                                Dictionary<string,string> props = new Dictionary<string, string>();
-                                int i = 1;
-                                foreach(var pInfo in entityType.GetProperties())
-                                {
-                                    var p = pInfo.GetCustomAttributesData().Where(v => v.AttributeType == tNoFluidNameAttr).FirstOrDefault();
-                                    var pCustomPropName = pInfo.GetCustomAttributesData().Where(v => v.AttributeType == tFluidPropAttr).FirstOrDefault();
-                                    string fnamePropCustom = fnameProp;
-                                    if (p == null)
-                                    {
-                                        if (pCustomPropName != null)
-                                        {
-                                            fnamePropCustom = (pCustomPropName.ConstructorArguments[0].Value as string);
-                                        }
-                                        props.Add(pInfo.Name, fnamePropCustom.ToUpper()+ i.ToString());
-                                        i++;
-                                    }
-                                }
-                                entityDescribtor.TableFields = props;
-                            }
+                            k++;                            
                         }
                     }
+                    Dictionary<string,ModelFields> props = new Dictionary<string, ModelFields>();
+                    int i = 1;
+                    foreach(var pInfo in entityType.GetProperties())
+                    {
+                        ModelFields fldDescribtion = new ModelFields();
+                        fldDescribtion.Type = pInfo.PropertyType;
+                        var NoFluidName = pInfo.GetCustomAttribute(tNoFluidNameAttr);
+                        if (NoFluidName != null && !String.IsNullOrWhiteSpace(fnameProp))
+                        {
+                            string fnamePropCustom = fnameProp;
+                            var pCustomPropName = pInfo.GetCustomAttribute(tFluidPropAttr);
+                            if (pCustomPropName != null)
+                            {
+                                fnamePropCustom = (pCustomPropName as FluidPropertyNameAttribute).StartsWith;
+                            }
+                            fnamePropCustom = fnamePropCustom.ToUpper()+ i.ToString();
+                            fldDescribtion.RenameField = true;
+                            fldDescribtion.Name = fnamePropCustom;
+                        }
+                        if (pInfo.GetCustomAttribute(tNoValueConverterAttr) != null) 
+                        {
+                            fldDescribtion.NoValueConverter = true;
+                        }
+                        props.Add(pInfo.Name, fldDescribtion);
+                        i++;
+                    } 
+                    entityDescribtor.TableFields = props;                 
+
                     // KeyPart && Index attribute proccessing!
                     foreach( var currentProp in entityType.GetProperties())
                     {
@@ -203,7 +229,7 @@ namespace Microsoft.EntityFrameworkCore
             {
                 MethodInfo EntityBuilderMethod = entityBuilderMethod.MakeGenericMethod(new Type[] { entity.Value.EntityType });
                 var eB = EntityBuilderMethod.Invoke(modelBuilder, null);
-                if (!String.IsNullOrWhiteSpace(entity.Value.EntityTableName))
+                if (!String.IsNullOrWhiteSpace(entity.Value.EntityTableName) && entity.Value.RenameTable)
                 {
                     eB = RelationalEntityTypeBuilderExtensions.ToTable(eB as EntityTypeBuilder, entity.Value.EntityTableName);
                     string comment = (eB as EntityTypeBuilder).Metadata.GetComment();
@@ -224,8 +250,17 @@ namespace Microsoft.EntityFrameworkCore
                 {
                     Type eBGenericType = typeof(EntityTypeBuilder<>).MakeGenericType(new Type[] { entity.Value.EntityType });
                     MethodInfo mi = eBGenericType.GetMethods().Where(v => v.Name == "Property" && !v.IsGenericMethod).FirstOrDefault();
-                    var pBuilder = mi.Invoke(eB, new object[] { pName.Key });
-                    pBuilder = RelationalPropertyBuilderExtensions.HasColumnName(pBuilder as PropertyBuilder, pName.Value).HasComment(pName.Key);
+                    if (pName.Value.RenameField)
+                    {
+                        var pBuilder = mi.Invoke(eB, new object[] { pName.Key });
+                        pBuilder = RelationalPropertyBuilderExtensions.HasColumnName(pBuilder as PropertyBuilder, pName.Value.Name).HasComment(pName.Key);
+                    }
+                    // set ValueConverter if it present!
+                    var VConverter = entities.Values.FirstOrDefault(v => v.EntityType == pName.Value.Type);
+                    if (VConverter != null && !pName.Value.NoValueConverter)
+                    {
+                        (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(VConverter.ValueConverter);
+                    }
                 }
                 // Indexes
                 foreach(var idx in entity.Value.Indexes)
