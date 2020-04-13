@@ -155,7 +155,7 @@ namespace Microsoft.EntityFrameworkCore
                         ModelFields fldDescribtion = new ModelFields();
                         fldDescribtion.Type = pInfo.PropertyType;
                         var NoFluidName = pInfo.GetCustomAttribute(tNoFluidNameAttr);
-                        if (NoFluidName != null && !String.IsNullOrWhiteSpace(fnameProp))
+                        if (NoFluidName == null && !String.IsNullOrWhiteSpace(fnameProp))
                         {
                             string fnamePropCustom = fnameProp;
                             var pCustomPropName = pInfo.GetCustomAttribute(tFluidPropAttr);
