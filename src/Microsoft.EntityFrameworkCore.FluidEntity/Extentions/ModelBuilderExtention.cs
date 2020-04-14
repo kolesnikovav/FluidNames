@@ -15,7 +15,8 @@ namespace Microsoft.EntityFrameworkCore
     public static class ModelBuilderExtensions
     {
         internal class ModelIndex
-        {  
+        {
+            internal string IndexName {get;set;}
             internal bool IsUnique {get;set;} = false;
             internal List<string> Properties {get;set;} = new List<string>();
         }
@@ -177,6 +178,7 @@ namespace Microsoft.EntityFrameworkCore
                     entityDescribtor.TableFields = props;                 
 
                     // KeyPart && Index attribute proccessing!
+                    int idxNumber=1;
                     foreach( var currentProp in entityType.GetProperties())
                     {
                         var IsPropertyPartOfKey = currentProp.GetCustomAttributesData().Where(v => v.AttributeType == tKeyPartAttr).FirstOrDefault();
@@ -197,6 +199,8 @@ namespace Microsoft.EntityFrameworkCore
                             else 
                             {
                                 mIdx = new ModelIndex();
+                                mIdx.IndexName = (IndexProp as IndexAttribute).StartsWith + "_" + idxNumber.ToString();
+                                idxNumber++;
                                 mIdx.IsUnique = (IndexProp as IndexAttribute).IsUnique;
                                 mIdx.Properties.Add(currentProp.Name);
                                 entityDescribtor.Indexes.Add((IndexProp as IndexAttribute).StartsWith, mIdx);
@@ -265,7 +269,7 @@ namespace Microsoft.EntityFrameworkCore
                 // Indexes
                 foreach(var idx in entity.Value.Indexes)
                 {
-                    (eB as EntityTypeBuilder).HasIndex(idx.Value.Properties.ToArray()).HasName(idx.Key).IsUnique(idx.Value.IsUnique);
+                    (eB as EntityTypeBuilder).HasIndex(idx.Value.Properties.ToArray()).HasName(idx.Value.IndexName).IsUnique(idx.Value.IsUnique);
                 }                
             }
             return modelBuilder;
