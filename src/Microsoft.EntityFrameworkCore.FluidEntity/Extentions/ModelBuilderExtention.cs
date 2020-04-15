@@ -287,6 +287,7 @@ namespace Microsoft.EntityFrameworkCore
                                     {
                                         entityDescribtor.RenameTable = true;
                                         entityDescribtor.EntityTableName = currentName;
+                                        // add this to existingTableNames
                                         break;
                                     }
                                     k++;
@@ -324,18 +325,26 @@ namespace Microsoft.EntityFrameworkCore
                                 if (pCustomPropName != null) {
                                    fnamePropCustom = (pCustomPropName as FluidPropertyNameAttribute).StartsWith; 
                                 }
-                                while (true)
+                                if (nameExist.Key != null && nameExist.Value != null && nameExist.Value.TableFields != null)
                                 {
-                                    fnamePropCustom = fnamePropCustom.ToUpper()+ i.ToString().Replace(" ","");
-                                    if ( nameExist.Value.TableFields.FirstOrDefault(v => (v.Value.Name == fnamePropCustom)).Key == null)
+                                    while (true)
                                     {
-                                        // name not exists
-                                        fldDescribtion.RenameField = true;
-                                        fldDescribtion.Name = fnamePropCustom;
-                                        break;
+                                        fnamePropCustom = fnamePropCustom.ToUpper() + i.ToString().Replace(" ", "");
+                                        if (nameExist.Value.TableFields.FirstOrDefault(v => (v.Value.Name == fnamePropCustom)).Key == null)
+                                        {
+                                            // name not exists
+                                            fldDescribtion.RenameField = true;
+                                            fldDescribtion.Name = fnamePropCustom;
+                                            break;
+                                        }
+                                        i++;
                                     }
+                                } else {
+                                    fnamePropCustom = fnamePropCustom.ToUpper() + i.ToString().Replace(" ", "");
+                                    fldDescribtion.RenameField = true;
+                                    fldDescribtion.Name = fnamePropCustom;
                                     i++;
-                                }                             
+                                }                        
                             }                                                                                         
                         }
                         if (pInfo.GetCustomAttribute(tNoValueConverterAttr) != null) 
@@ -377,6 +386,11 @@ namespace Microsoft.EntityFrameworkCore
                         }                        
                     }
                     contextEntities.Add(prop.Name,entityDescribtor);
+                    if (!existingTableNames.ContainsKey(prop.Name))
+                    {
+                        existingTableNames.Add(prop.Name, entityDescribtor);
+
+                    }
                 }
             }
             SaveExistingNames(currentInfoPath);        
