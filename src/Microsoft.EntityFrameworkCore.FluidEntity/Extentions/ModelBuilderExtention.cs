@@ -31,6 +31,10 @@ namespace Microsoft.EntityFrameworkCore
             internal Type Type {get;set;}
             internal bool RenameField {get;set;} = false;
             internal bool NoValueConverter {get;set;} = false;
+
+            internal bool? IsRequired {get;set;} = null;
+            internal string DefaultSQLValueForReference {get;set;}
+            internal ValueConverter ValueConverterProperty {get;set;}
         }              
 
         internal class ModelDataNames
@@ -72,7 +76,7 @@ namespace Microsoft.EntityFrameworkCore
             }
             return false;
         }
-        internal static ValueConverter GetConverter(Type TModel, DbContext context, string nameDBSet )
+        internal static ValueConverter GetConverter(Type TModel, DbContext context, string nameDBSet, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault )
         {
             Type TClr = null;
             string KeyName = null;
@@ -89,26 +93,40 @@ namespace Microsoft.EntityFrameworkCore
             //**** model - clr conversion ************
             ParameterExpression parameterModel = Expression.Parameter(TModel, "v");
             MemberExpression propertyModel = Expression.Property(parameterModel, KeyName);
-            var ExpressionModelCLR = Expression.Lambda(tFuncModelCLR, propertyModel, parameterModel); 
+            var ExpressionModelCLR = Expression.Lambda(tFuncModelCLR, propertyModel, parameterModel);
             //**** clr - model conversion ************
+            LambdaExpression ExpressionCLRModel = null;
             ParameterExpression parameterModelFind = Expression.Parameter(TModel, "a");
-            MemberExpression propertyModelFind = Expression.Property(parameterModelFind, KeyName); 
             ParameterExpression parameterClrFind = Expression.Parameter(TClr, "v");
-            Expression FindPredicate = Expression.Equal(propertyModelFind,parameterClrFind); 
-            var eFirstOrDefault = Expression.Lambda(tFuncModelFind, FindPredicate, new ParameterExpression[] {parameterModelFind});           
-            MethodInfo mFirstOrDefault = typeof(Queryable).GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(v => v.Name == "FirstOrDefault" && v.GetParameters().Count() == 2).First();
-            MethodInfo mGFirstOrDefault = mFirstOrDefault.MakeGenericMethod(TModel); 
+            MemberExpression propertyModelFind = Expression.Property(parameterModelFind, KeyName);
+            Expression FindPredicate = Expression.Equal(propertyModelFind, parameterClrFind);
+            var eFirstOrDefault = Expression.Lambda(tFuncModelFind, FindPredicate, new ParameterExpression[] { parameterModelFind });
+            MethodInfo mFirstOrDefault = null;
+            MethodInfo mGFirstOrDefault = null;
+
+            if (modelClrMethod == ValueConverterMethod.FirstOrDefault)
+            {
+                mFirstOrDefault = typeof(Queryable).GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Where(v => v.Name == "FirstOrDefault" && v.GetParameters().Count() == 2).First();
+                mGFirstOrDefault = mFirstOrDefault.MakeGenericMethod(TModel);
+            }
+            else if (modelClrMethod == ValueConverterMethod.First)
+            {
+                mFirstOrDefault = typeof(Queryable).GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Where(v => v.Name == "First" && v.GetParameters().Count() == 2).First();
+                mGFirstOrDefault = mFirstOrDefault.MakeGenericMethod(TModel);
+            }
+
             MemberExpression propertyDBSet = Expression.Property(Expression.Constant(context), nameDBSet);
             Expression callExpr = Expression.Call(
-                                    mGFirstOrDefault ,
+                                    mGFirstOrDefault,
                                     new Expression[] {
                                         propertyDBSet,
                                         eFirstOrDefault
                                     }
-                                );            
-            var ExpressionCLRModel = Expression.Lambda(callExpr,parameterClrFind);
-            var res = Activator.CreateInstance(gVConverter,new object[] {ExpressionModelCLR, ExpressionCLRModel, null});
+                                );
+            ExpressionCLRModel = Expression.Lambda(callExpr, parameterClrFind);
+            var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelCLR, ExpressionCLRModel, null });
             return res as ValueConverter;
         }
         internal static void ReadExistingNames(string filePath)
@@ -231,6 +249,9 @@ namespace Microsoft.EntityFrameworkCore
             Type tNoBaseTypeAttr = typeof(NoBaseTypeAttribute);
             Type tIndexAttr = typeof(IndexAttribute);
             Type tNoValueConverterAttr = typeof(NoValueConverterAttribute);
+            Type tValueConverterMethodAttr = typeof(ValueConverterMethodAttribute);
+            Type tIsRequiredAsReferenceAttr = typeof(IsRequiredAsReferenceAttribute);
+            Type tDefaultSQLValueForReferenceAttr = typeof(DefaultSQLValueForReferenceAttribute);
             // enumerate all DBSet<> (entity)
             int k = 1;
             int idxNumber=1;
@@ -304,6 +325,25 @@ namespace Microsoft.EntityFrameworkCore
                     {
                         ModelFields fldDescribtion = new ModelFields();
                         fldDescribtion.Type = pInfo.PropertyType;
+                        // is property type entity?
+                        bool typeIsEntity = context.GetType().GetProperties()
+                            .Where(v => v.PropertyType.GenericTypeArguments.Contains(pInfo.PropertyType)).FirstOrDefault() != null;
+                        if (typeIsEntity)
+                        {
+                            bool IsRequired = pInfo.PropertyType.GetCustomAttribute(tIsRequiredAsReferenceAttr) != null;
+                            fldDescribtion.IsRequired = IsRequired;
+                            DefaultSQLValueForReferenceAttribute a = pInfo.PropertyType.GetCustomAttribute(tDefaultSQLValueForReferenceAttr) as DefaultSQLValueForReferenceAttribute;
+                            if (a != null) 
+                            {
+                                fldDescribtion.DefaultSQLValueForReference = a.SQLExpression;
+                            }
+
+                        }
+
+
+
+
+
                         var NoFluidName = pInfo.GetCustomAttribute(tNoFluidNameAttr);
                         if (NoFluidName == null && !String.IsNullOrWhiteSpace(fnameProp))
                         {
@@ -347,9 +387,21 @@ namespace Microsoft.EntityFrameworkCore
                                 }                        
                             }                                                                                         
                         }
+                        
                         if (pInfo.GetCustomAttribute(tNoValueConverterAttr) != null) 
                         {
                             fldDescribtion.NoValueConverter = true;
+                        } 
+                        else if (pInfo.GetCustomAttribute(tValueConverterMethodAttr) != null)
+                        {
+                            var method = pInfo.GetCustomAttribute(tValueConverterMethodAttr) as ValueConverterMethodAttribute;
+                            var DbContextPropName = context.GetType().GetProperties()
+                            .Where(v => v.PropertyType.GenericTypeArguments.Contains(pInfo.PropertyType)).FirstOrDefault();
+                            if (DbContextPropName != null)
+                            {
+                                var vConverter = GetConverter(pInfo.PropertyType, context, DbContextPropName.Name, method.Method);
+                                fldDescribtion.ValueConverterProperty = vConverter;
+                            }
                         }
                         props.Add(pInfo.Name, fldDescribtion);
                     } 
@@ -441,11 +493,29 @@ namespace Microsoft.EntityFrameworkCore
                         var pBuilder = mi.Invoke(eB, new object[] { pName.Key });
                         pBuilder = RelationalPropertyBuilderExtensions.HasColumnName(pBuilder as PropertyBuilder, pName.Value.Name).HasComment(pName.Key);
                     }
-                    // set ValueConverter if it present!
-                    var VConverter = contextEntities.Values.FirstOrDefault(v => v.EntityType == pName.Value.Type);
-                    if (VConverter != null && !pName.Value.NoValueConverter)
+                    bool isReq = pName.Value.IsRequired == null ? false : true;
+                    if (isReq)
                     {
-                        (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(VConverter.ValueConverter);
+                        (eB as EntityTypeBuilder).Property(pName.Key).IsRequired(true);
+                    }
+                    if (!String.IsNullOrWhiteSpace(pName.Value.DefaultSQLValueForReference))
+                    {
+                        (eB as EntityTypeBuilder).Property(pName.Key).HasDefaultValueSql(pName.Value.DefaultSQLValueForReference);
+                    }
+                    // set ValueConverter if it present!
+                    if (pName.Value.ValueConverterProperty != null)
+                    {
+                        Console.WriteLine(pName.Value.ValueConverterProperty.ConvertFromProviderExpression);
+                        (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(pName.Value.ValueConverterProperty);
+                    }
+                    else
+                    {
+                        var VConverter = contextEntities.Values.FirstOrDefault(v => v.EntityType == pName.Value.Type);
+                        if (VConverter != null && !pName.Value.NoValueConverter)
+                        {
+                            
+                            (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(VConverter.ValueConverter);
+                        }
                     }
                 }
                 // Indexes
