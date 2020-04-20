@@ -12,6 +12,6 @@ namespace Microsoft.EntityFrameworkCore
         /// KeyPart attribute default constructor.
         /// Mark property as a part of entity key 
         /// </summary>         
-        public KeyPartAttribute(){}        
+        public KeyPartAttribute(){}
     }    
 }

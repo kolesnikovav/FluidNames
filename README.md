@@ -104,6 +104,35 @@ This is equivalent Fluent API method, but it can be done at top hierarchy level
     modelBuilder.Entity<>().HasIndex(...).IsUnique()
 ```
 
+```csharp
+    [IsRequiredAsReference] // you can set Entity, that referenced this Entity column does not allow null
+```
+This is equivalent Fluent API method, but you can mark all reference for this Entity as required
+```csharp
+    modelBuilder.Entity<>().Property(<referencing property>).IsReqiured()
+```
+
+```csharp
+    [DefaultSQLValueForReference("sql expression")] // you can set default value for reference this Entity
+```
+This is equivalent Fluent API method, but you can mark all reference for this Entity as required
+```csharp
+    modelBuilder.Entity<>().Property(<referencing property>).HasDefaultValueSql("sql expression")
+```
+
+
+
+# Postgresql specific attribute
+
+You can set xmin system column as concurency token. For details, please refer to [Npgsql documentation](https://www.npgsql.org/efcore/modeling/concurrency.html?q=UseXminAsConcurrencyToken)
+```csharp
+    [UseXminAsConcurrencyToken] // set xmin system column as concurency token
+```
+
+```csharp
+    modelBuilder.Entity<>().UseXminAsConcurrencyToken()
+```
+
 
 
 

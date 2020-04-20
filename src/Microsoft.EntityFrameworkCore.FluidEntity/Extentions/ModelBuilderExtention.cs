@@ -8,49 +8,51 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Reflection;
 using System.IO;
 using System.Xml;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace Microsoft.EntityFrameworkCore
 {
-    internal class ModelIndex
-    {
-        internal string IndexName { get; set; }
-        internal bool IsUnique { get; set; } = false;
-        internal List<string> Properties { get; set; } = new List<string>();
-        internal string Fields;
-    }
-    internal class ModelFields
-    {
-        internal string Name { get; set; }
-        internal Type Type { get; set; }
-        internal bool RenameField { get; set; } = false;
-        internal bool NoValueConverter { get; set; } = false;
-
-        internal bool? IsRequired { get; set; } = null;
-        internal string DefaultSQLValueForReference { get; set; }
-        internal ValueConverter ValueConverterProperty { get; set; }
-    }
-
-    internal class ModelDataNames
-    {
-        internal Type EntityType { get; set; }
-        internal string TypeFullName { get; set; }
-        internal ValueConverter ValueConverter { get; set; }
-        internal string EntityTableName { get; set; }
-        internal bool RenameTable { get; set; } = false;
-        internal bool EntityHasNoBaseType { get; set; }
-        internal Dictionary<string, ModelFields> TableFields { get; set; } = new Dictionary<string, ModelFields>();
-        internal Dictionary<string, string> EntityKeys { get; set; } = new Dictionary<string, string>();
-        internal Dictionary<string, ModelIndex> Indexes { get; set; } = new Dictionary<string, ModelIndex>();
-    }    
     /// <summary>
     /// Represents a plugin for Microsoft.EntityFrameworkCore to support automatically set fluid names.
     /// </summary>
     public static class ModelBuilderExtensions
     {
-        private static bool isContextEntitiesEnabled = false;
         private static readonly Dictionary<string, ModelDataNames> existingTableNames = new Dictionary<string, ModelDataNames>();
         private static readonly Dictionary<string,ModelDataNames> contextEntities = new Dictionary<string, ModelDataNames>();
 
+        private static bool contextEntitiesExists = false;
+        internal class ModelIndex
+        {
+            internal string IndexName {get;set;}
+            internal bool IsUnique {get;set;} = false;
+            internal List<string> Properties {get;set;} = new List<string>();
+            internal string Fields;
+        }
+        internal class ModelFields
+        {  
+            internal string Name {get;set;}
+            internal Type Type {get;set;}
+            internal bool RenameField {get;set;} = false;
+            internal bool NoValueConverter {get;set;} = false;
+
+            internal bool? IsRequired {get;set;} = null;
+            internal string DefaultSQLValueForReference {get;set;}
+            internal ValueConverter ValueConverterProperty {get;set;}
+        }              
+
+        internal class ModelDataNames
+        {
+            internal Type EntityType {get;set;}
+            internal string TypeFullName {get;set;}
+            internal ValueConverter ValueConverter {get;set;}
+            internal string EntityTableName {get;set;}
+            internal bool RenameTable {get;set;} = false;
+            internal bool EntityHasNoBaseType {get;set;}
+            internal bool UseXminAsConcurrencyToken {get;set;}
+            internal Dictionary<string,ModelFields> TableFields {get;set;} = new Dictionary<string, ModelFields>();
+            internal Dictionary<string,string> EntityKeys {get;set;} = new Dictionary<string, string>();
+            internal Dictionary<string,ModelIndex> Indexes {get;set;} = new Dictionary<string, ModelIndex>();
+        }
         internal static string GetStringFromList(List<string> content)
         {
             string result = "";
@@ -241,6 +243,7 @@ namespace Microsoft.EntityFrameworkCore
             {
                 ReadExistingNames(currentInfoPath);             
             }
+            //var res = new Dictionary<string,ModelDataNames>();
             var allDBProps = context.GetType().GetProperties();
             Type tDBSet = typeof(DbSet<>);
             Type tFluidNameAttr = typeof(FluidNameAttribute);
@@ -253,6 +256,7 @@ namespace Microsoft.EntityFrameworkCore
             Type tValueConverterMethodAttr = typeof(ValueConverterMethodAttribute);
             Type tIsRequiredAsReferenceAttr = typeof(IsRequiredAsReferenceAttribute);
             Type tDefaultSQLValueForReferenceAttr = typeof(DefaultSQLValueForReferenceAttribute);
+            Type tUseXminAsConcurrencyTokenAttr = typeof(UseXminAsConcurrencyTokenAttribute);
             // enumerate all DBSet<> (entity)
             int k = 1;
             int idxNumber=1;
@@ -265,6 +269,10 @@ namespace Microsoft.EntityFrameworkCore
                     var entityDescribtor = new ModelDataNames();
                     entityDescribtor.EntityType = entityType;
                     entityDescribtor.TypeFullName = entityType.FullName;
+                    if (entityType.GetCustomAttribute(tUseXminAsConcurrencyTokenAttr) != null)
+                    {
+                        entityDescribtor.UseXminAsConcurrencyToken = true;
+                    }
                     var NoValueConverter = entityType.GetCustomAttribute(tNoValueConverterAttr);
                     if (entityType.GetCustomAttribute(tNoValueConverterAttr) == null)
                     {
@@ -337,7 +345,6 @@ namespace Microsoft.EntityFrameworkCore
                             {
                                 fldDescribtion.DefaultSQLValueForReference = a.SQLExpression;
                             }
-
                         }
                         var NoFluidName = pInfo.GetCustomAttribute(tNoFluidNameAttr);
                         if (NoFluidName == null && !String.IsNullOrWhiteSpace(fnameProp))
@@ -436,6 +443,7 @@ namespace Microsoft.EntityFrameworkCore
                     if (!existingTableNames.ContainsKey(prop.Name))
                     {
                         existingTableNames.Add(prop.Name, entityDescribtor);
+
                     }
                 }
             }
@@ -449,17 +457,15 @@ namespace Microsoft.EntityFrameworkCore
         /// <returns>The <see cref="ModelBuilder"/> had enabled fluid names feature.</returns>
         public static ModelBuilder CreateFluidNames(this ModelBuilder modelBuilder, DbContext context)
         {
-            // read dbcontext once
-            if (!isContextEntitiesEnabled)
+            if (!contextEntitiesExists)
             {
                 object locker = new object();
-                lock (new object())
+                lock (locker)
                 {
                     getEntities(context);
-                    isContextEntitiesEnabled = true;
+                    contextEntitiesExists = true;
                 }
             }
-            
             MethodInfo entityBuilderMethod = modelBuilder.GetType().GetMethods()
             .Where(n => n.Name == "Entity" && n.IsGenericMethod)
             .Where(n => n.GetParameters().Count() == 0).FirstOrDefault();
@@ -487,7 +493,11 @@ namespace Microsoft.EntityFrameworkCore
                 {
                     (eB as EntityTypeBuilder).HasKey(entity.Value.EntityKeys.Keys.ToArray());
                 }
-               
+                // this is only npgsql feature!!!
+                if (entity.Value.UseXminAsConcurrencyToken)
+                {
+                    (eB as EntityTypeBuilder).UseXminAsConcurrencyToken();
+                }
                 foreach(var pName in entity.Value.TableFields)
                 {
                     Type eBGenericType = typeof(EntityTypeBuilder<>).MakeGenericType(new Type[] { entity.Value.EntityType });
