@@ -115,6 +115,10 @@ This is equivalent Fluent API method, but you can mark all reference for this En
 ```csharp
     [DefaultSQLValueForReference("sql expression")] // you can set default value for reference this Entity
 ```
+For property, equivalent is
+```csharp
+    [DefaultSQLValue("sql expression")] // you can set default sql value for property
+```
 This is equivalent Fluent API method, but you can mark all reference for this Entity as required
 ```csharp
     modelBuilder.Entity<>().Property(<referencing property>).HasDefaultValueSql("sql expression")

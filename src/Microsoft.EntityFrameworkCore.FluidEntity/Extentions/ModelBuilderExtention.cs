@@ -256,6 +256,7 @@ namespace Microsoft.EntityFrameworkCore
             Type tValueConverterMethodAttr = typeof(ValueConverterMethodAttribute);
             Type tIsRequiredAsReferenceAttr = typeof(IsRequiredAsReferenceAttribute);
             Type tDefaultSQLValueForReferenceAttr = typeof(DefaultSQLValueForReferenceAttribute);
+            Type tDefaultSQLValueAttr = typeof(DefaultSQLValueAttribute);
             Type tUseXminAsConcurrencyTokenAttr = typeof(UseXminAsConcurrencyTokenAttribute);
             // enumerate all DBSet<> (entity)
             int k = 1;
@@ -345,6 +346,11 @@ namespace Microsoft.EntityFrameworkCore
                             {
                                 fldDescribtion.DefaultSQLValueForReference = a.SQLExpression;
                             }
+                            DefaultSQLValueAttribute b = pInfo.GetCustomAttribute(tDefaultSQLValueAttr) as DefaultSQLValueAttribute;
+                            if (a != null) 
+                            {
+                                fldDescribtion.DefaultSQLValueForReference = a.SQLExpression;
+                            }                            
                         }
                         var NoFluidName = pInfo.GetCustomAttribute(tNoFluidNameAttr);
                         if (NoFluidName == null && !String.IsNullOrWhiteSpace(fnameProp))
