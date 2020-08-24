@@ -5,22 +5,22 @@ namespace Microsoft.EntityFrameworkCore
 {
     /// <summary>
     /// Set default sql expression for property
-    /// </summary>       
+    /// </summary>
     [AttributeUsage(AttributeTargets.Property)]
     public class DefaultSQLValueAttribute : Attribute
     {
         /// <summary>
         /// Set default sql expression for property
-        /// </summary>        
+        /// </summary>
         [NotNull]
-        public string SQLExpression {get;set;}        
+        public string SQLExpression {get;set;}
         /// <summary>
         /// Set default sql expression for property
-        /// </summary>          
-        public DefaultSQLValueAttribute( string expressionSQL) 
-        { 
+        /// </summary>
+        public DefaultSQLValueAttribute( string expressionSQL)
+        {
             this.SQLExpression = expressionSQL;
         }
-    }    
+    }
 
 }

@@ -18,40 +18,40 @@ namespace Microsoft.EntityFrameworkCore
     public static class ModelBuilderExtensions
     {
         private static readonly Dictionary<string, ModelDataNames> existingTableNames = new Dictionary<string, ModelDataNames>();
-        private static readonly Dictionary<string,ModelDataNames> contextEntities = new Dictionary<string, ModelDataNames>();
+        private static readonly Dictionary<string, ModelDataNames> contextEntities = new Dictionary<string, ModelDataNames>();
 
         private static bool contextEntitiesExists = false;
         internal class ModelIndex
         {
-            internal string IndexName {get;set;}
-            internal bool IsUnique {get;set;} = false;
-            internal List<string> Properties {get;set;} = new List<string>();
+            internal string IndexName { get; set; }
+            internal bool IsUnique { get; set; } = false;
+            internal List<string> Properties { get; set; } = new List<string>();
             internal string Fields;
         }
         internal class ModelFields
-        {  
-            internal string Name {get;set;}
-            internal Type Type {get;set;}
-            internal bool RenameField {get;set;} = false;
-            internal bool NoValueConverter {get;set;} = false;
+        {
+            internal string Name { get; set; }
+            internal Type Type { get; set; }
+            internal bool RenameField { get; set; } = false;
+            internal bool NoValueConverter { get; set; } = false;
 
-            internal bool? IsRequired {get;set;} = null;
-            internal string DefaultSQLValueForReference {get;set;}
-            internal ValueConverter ValueConverterProperty {get;set;}
-        }              
+            internal bool? IsRequired { get; set; } = null;
+            internal string DefaultSQLValueForReference { get; set; }
+            internal ValueConverter ValueConverterProperty { get; set; }
+        }
 
         internal class ModelDataNames
         {
-            internal Type EntityType {get;set;}
-            internal string TypeFullName {get;set;}
-            internal ValueConverter ValueConverter {get;set;}
-            internal string EntityTableName {get;set;}
-            internal bool RenameTable {get;set;} = false;
-            internal bool EntityHasNoBaseType {get;set;}
-            internal bool UseXminAsConcurrencyToken {get;set;}
-            internal Dictionary<string,ModelFields> TableFields {get;set;} = new Dictionary<string, ModelFields>();
-            internal Dictionary<string,string> EntityKeys {get;set;} = new Dictionary<string, string>();
-            internal Dictionary<string,ModelIndex> Indexes {get;set;} = new Dictionary<string, ModelIndex>();
+            internal Type EntityType { get; set; }
+            internal string TypeFullName { get; set; }
+            internal ValueConverter ValueConverter { get; set; }
+            internal string EntityTableName { get; set; }
+            internal bool RenameTable { get; set; } = false;
+            internal bool EntityHasNoBaseType { get; set; }
+            internal bool UseXminAsConcurrencyToken { get; set; }
+            internal Dictionary<string, ModelFields> TableFields { get; set; } = new Dictionary<string, ModelFields>();
+            internal Dictionary<string, string> EntityKeys { get; set; } = new Dictionary<string, string>();
+            internal Dictionary<string, ModelIndex> Indexes { get; set; } = new Dictionary<string, ModelIndex>();
         }
         internal static string GetStringFromList(List<string> content)
         {
@@ -80,18 +80,18 @@ namespace Microsoft.EntityFrameworkCore
             }
             return false;
         }
-        internal static ValueConverter GetConverter(Type TModel, DbContext context, string nameDBSet, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault )
+        internal static ValueConverter GetConverter(Type TModel, DbContext context, string nameDBSet, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault)
         {
             Type TClr = null;
             string KeyName = null;
             if (!GetKeyPropertyOfEntity(TModel, out TClr, out KeyName)) return null;
             if (TClr == TModel) return null;
             Type tVConverter = typeof(ValueConverter<,>);
-            Type gVConverter  = tVConverter.MakeGenericType(new Type[] {TModel, TClr});
+            Type gVConverter = tVConverter.MakeGenericType(new Type[] { TModel, TClr });
             Type tFunc = typeof(Func<,>);
-            Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] {TModel, TClr});
-            Type tFuncCLRModel = tFunc.MakeGenericType(new Type[] {TClr, TModel});
-            Type tFuncModelFind = tFunc.MakeGenericType(new Type[] {TModel, typeof(bool)});
+            Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] { TModel, TClr });
+            Type tFuncCLRModel = tFunc.MakeGenericType(new Type[] { TClr, TModel });
+            Type tFuncModelFind = tFunc.MakeGenericType(new Type[] { TModel, typeof(bool) });
             Type tIQueryable = typeof(IQueryable<>);
             Type tIQueryableModel = tIQueryable.MakeGenericType(TModel);
             //**** model - clr conversion ************
@@ -143,7 +143,7 @@ namespace Microsoft.EntityFrameworkCore
             {
                 var entityName = cNode.Attributes["name"].Value;
                 var entityType = cNode.Attributes["type"].Value;
-                var tablename  = cNode.Attributes["tablename"].Value;
+                var tablename = cNode.Attributes["tablename"].Value;
                 ModelDataNames mdn = new ModelDataNames();
                 mdn.EntityTableName = tablename;
                 mdn.TypeFullName = entityType;
@@ -160,10 +160,11 @@ namespace Microsoft.EntityFrameworkCore
                             var fieldType = nfield.Attributes["type"].Value;
                             if (!String.IsNullOrWhiteSpace(assignedName))
                             {
-                                mdn.TableFields.Add(fieldName, new ModelFields {Name = assignedName });
+                                mdn.TableFields.Add(fieldName, new ModelFields { Name = assignedName });
                             }
                         }
-                    } else if (nChld.Name == "indexes")
+                    }
+                    else if (nChld.Name == "indexes")
                     {
                         foreach (XmlNode nidx in nChld.ChildNodes)
                         {
@@ -171,9 +172,9 @@ namespace Microsoft.EntityFrameworkCore
                             var idxfields = nidx.Attributes["fields"].Value;
                             if (!String.IsNullOrWhiteSpace(idxName))
                             {
-                                mdn.Indexes.Add(idxName, new ModelIndex {Fields = idxfields});
+                                mdn.Indexes.Add(idxName, new ModelIndex { Fields = idxfields });
                             }
-                        }                    
+                        }
                     }
                 }
                 existingTableNames.Add(entityName, mdn);
@@ -184,7 +185,7 @@ namespace Microsoft.EntityFrameworkCore
             XmlDocument doc = new XmlDocument();
             XmlNode root = doc.CreateElement("fluidnames");
             XmlNode node = doc.CreateElement("entities");
-            foreach( var entity in contextEntities)
+            foreach (var entity in contextEntities)
             {
                 XmlNode nodeEntity = doc.CreateElement("entity");
                 var a = doc.CreateAttribute("name");
@@ -192,7 +193,7 @@ namespace Microsoft.EntityFrameworkCore
                 var b = doc.CreateAttribute("type");
                 b.Value = entity.Value.EntityType.FullName;
                 var c = doc.CreateAttribute("tablename");
-                c.Value = entity.Value.EntityTableName;                
+                c.Value = entity.Value.EntityTableName;
                 nodeEntity.Attributes.Append(a);
                 nodeEntity.Attributes.Append(b);
                 nodeEntity.Attributes.Append(c);
@@ -203,25 +204,25 @@ namespace Microsoft.EntityFrameworkCore
                     var fname = doc.CreateAttribute("name");
                     fname.Value = fld.Value.Name;
                     var ftype = doc.CreateAttribute("type");
-                    ftype.Value = fld.Value.Type.FullName; 
+                    ftype.Value = fld.Value.Type.FullName;
 
                     var fn = doc.CreateAttribute("propname");
-                    fn.Value = fld.Key;                                       
+                    fn.Value = fld.Key;
                     XmlNode fldNodeCurrent = doc.CreateElement("field");
                     fldNodeCurrent.Attributes.Append(fn);
                     fldNodeCurrent.Attributes.Append(fname);
                     fldNodeCurrent.Attributes.Append(ftype);
                     fldNode.AppendChild(fldNodeCurrent);
                 }
-                nodeEntity.AppendChild(fldNode);                
-                
+                nodeEntity.AppendChild(fldNode);
+
                 XmlNode idxNode = doc.CreateElement("indexes");
                 foreach (var idx in entity.Value.Indexes)
                 {
                     var i = doc.CreateAttribute("fields");
                     i.Value = GetStringFromList(idx.Value.Properties);
                     var id = doc.CreateAttribute("name");
-                    id.Value = idx.Value.IndexName;                    
+                    id.Value = idx.Value.IndexName;
                     XmlNode idxNodeCurrent = doc.CreateElement("index");
                     idxNodeCurrent.Attributes.Append(id);
                     idxNodeCurrent.Attributes.Append(i);
@@ -233,15 +234,15 @@ namespace Microsoft.EntityFrameworkCore
             root.AppendChild(node);
             doc.AppendChild(root);
             doc.Save(filePath);
-        }        
+        }
         internal static void getEntities(DbContext context)
         {
             contextEntities.Clear();
             // this code is to avoid unnessesary renaming existing entities/fields 
-            var currentInfoPath = Path.Combine(Directory.GetCurrentDirectory(),context.GetType().Name+".info.xml");
+            var currentInfoPath = Path.Combine(Directory.GetCurrentDirectory(), context.GetType().Name + ".info.xml");
             if (File.Exists(currentInfoPath))
             {
-                ReadExistingNames(currentInfoPath);             
+                ReadExistingNames(currentInfoPath);
             }
             //var res = new Dictionary<string,ModelDataNames>();
             var allDBProps = context.GetType().GetProperties();
@@ -260,8 +261,8 @@ namespace Microsoft.EntityFrameworkCore
             Type tUseXminAsConcurrencyTokenAttr = typeof(UseXminAsConcurrencyTokenAttribute);
             // enumerate all DBSet<> (entity)
             int k = 1;
-            int idxNumber=1;
-            foreach( var prop in allDBProps.Where(p => p.PropertyType.IsGenericType))
+            int idxNumber = 1;
+            foreach (var prop in allDBProps.Where(p => p.PropertyType.IsGenericType))
             {
                 var genericDBSetType = tDBSet.MakeGenericType(prop.PropertyType.GenericTypeArguments);
                 if (prop.PropertyType.IsEquivalentTo(genericDBSetType))
@@ -281,7 +282,7 @@ namespace Microsoft.EntityFrameworkCore
                         {
                             entityDescribtor.ValueConverter = GetConverter(entityType, context, prop.Name);
                         }
-                        catch(Exception e)
+                        catch (Exception e)
                         {
                             // TODO information!!!
                         }
@@ -294,11 +295,11 @@ namespace Microsoft.EntityFrameworkCore
                     var FluidNameProp = entityType.GetCustomAttribute(tFluidPropAttr);
                     string fname = null;
                     string fnameProp = null;
-                    KeyValuePair<string,ModelDataNames> nameExist;
+                    KeyValuePair<string, ModelDataNames> nameExist;
                     if (FluidName != null)
                     {
                         fname = (FluidName as FluidNameAttribute).StartsWith;
-                        
+
                         if (!String.IsNullOrWhiteSpace(fname))
                         {
                             nameExist = existingTableNames.FirstOrDefault(v => v.Value.TypeFullName == entityType.FullName);
@@ -308,11 +309,11 @@ namespace Microsoft.EntityFrameworkCore
                                 entityDescribtor.EntityTableName = nameExist.Value.EntityTableName;
                                 k++;
                             }
-                            else 
+                            else
                             {
                                 while (true)
                                 {
-                                    string currentName = fname.ToUpper()+ k.ToString().Replace(" ","");
+                                    string currentName = fname.ToUpper() + k.ToString().Replace(" ", "");
                                     var nameExistCurrent = existingTableNames.FirstOrDefault(v => v.Value.EntityTableName == currentName);
                                     if (nameExistCurrent.Key == null)
                                     {
@@ -327,10 +328,10 @@ namespace Microsoft.EntityFrameworkCore
                         }
                     }
                     fnameProp = (FluidNameProp == null) ? "" : (FluidNameProp as FluidPropertyNameAttribute).StartsWith;
-                    Dictionary<string,ModelFields> props = new Dictionary<string, ModelFields>();
+                    Dictionary<string, ModelFields> props = new Dictionary<string, ModelFields>();
                     int i = 1;
                     nameExist = existingTableNames.FirstOrDefault(v => v.Value.TypeFullName == entityType.FullName);
-                    foreach(var pInfo in entityType.GetProperties())
+                    foreach (var pInfo in entityType.GetProperties())
                     {
                         ModelFields fldDescribtion = new ModelFields();
                         fldDescribtion.Type = pInfo.PropertyType;
@@ -342,22 +343,22 @@ namespace Microsoft.EntityFrameworkCore
                             bool IsRequired = pInfo.PropertyType.GetCustomAttribute(tIsRequiredAsReferenceAttr) != null;
                             fldDescribtion.IsRequired = IsRequired;
                             DefaultSQLValueForReferenceAttribute a = pInfo.PropertyType.GetCustomAttribute(tDefaultSQLValueForReferenceAttr) as DefaultSQLValueForReferenceAttribute;
-                            if (a != null) 
+                            if (a != null)
                             {
                                 fldDescribtion.DefaultSQLValueForReference = a.SQLExpression;
                             }
                             DefaultSQLValueAttribute b = pInfo.GetCustomAttribute(tDefaultSQLValueAttr) as DefaultSQLValueAttribute;
-                            if (a != null) 
+                            if (a != null)
                             {
                                 fldDescribtion.DefaultSQLValueForReference = a.SQLExpression;
-                            }                            
+                            }
                         }
                         var NoFluidName = pInfo.GetCustomAttribute(tNoFluidNameAttr);
                         if (NoFluidName == null && !String.IsNullOrWhiteSpace(fnameProp))
                         {
                             var pCustomPropName = pInfo.GetCustomAttribute(tFluidPropAttr);
                             // find assigned property field
-                            bool propIsAssigned = false;                                                                          
+                            bool propIsAssigned = false;
                             if (nameExist.Key != null)
                             {
                                 propIsAssigned = nameExist.Value.TableFields.ContainsKey(pInfo.Name);
@@ -366,12 +367,13 @@ namespace Microsoft.EntityFrameworkCore
                             {
                                 fldDescribtion.RenameField = true;
                                 fldDescribtion.Name = nameExist.Value.TableFields[pInfo.Name].Name;
-                            } 
-                            else 
+                            }
+                            else
                             {
                                 string fnamePropCustom = fnameProp;
-                                if (pCustomPropName != null) {
-                                   fnamePropCustom = (pCustomPropName as FluidPropertyNameAttribute).StartsWith; 
+                                if (pCustomPropName != null)
+                                {
+                                    fnamePropCustom = (pCustomPropName as FluidPropertyNameAttribute).StartsWith;
                                 }
                                 if (nameExist.Key != null && nameExist.Value != null && nameExist.Value.TableFields != null)
                                 {
@@ -387,19 +389,21 @@ namespace Microsoft.EntityFrameworkCore
                                         }
                                         i++;
                                     }
-                                } else {
+                                }
+                                else
+                                {
                                     fnamePropCustom = fnamePropCustom.ToUpper() + i.ToString().Replace(" ", "");
                                     fldDescribtion.RenameField = true;
                                     fldDescribtion.Name = fnamePropCustom;
                                     i++;
-                                }                        
-                            }                                                                                         
+                                }
+                            }
                         }
-                        
-                        if (pInfo.GetCustomAttribute(tNoValueConverterAttr) != null) 
+
+                        if (pInfo.GetCustomAttribute(tNoValueConverterAttr) != null)
                         {
                             fldDescribtion.NoValueConverter = true;
-                        } 
+                        }
                         else if (pInfo.GetCustomAttribute(tValueConverterMethodAttr) != null)
                         {
                             var method = pInfo.GetCustomAttribute(tValueConverterMethodAttr) as ValueConverterMethodAttribute;
@@ -412,11 +416,11 @@ namespace Microsoft.EntityFrameworkCore
                             }
                         }
                         props.Add(pInfo.Name, fldDescribtion);
-                    } 
-                    entityDescribtor.TableFields = props;                 
+                    }
+                    entityDescribtor.TableFields = props;
 
                     // KeyPart && Index attribute proccessing!
-                    foreach( var currentProp in entityType.GetProperties())
+                    foreach (var currentProp in entityType.GetProperties())
                     {
                         var IsPropertyPartOfKey = currentProp.GetCustomAttributesData().Where(v => v.AttributeType == tKeyPartAttr).FirstOrDefault();
                         if (IsPropertyPartOfKey != null)
@@ -433,7 +437,7 @@ namespace Microsoft.EntityFrameworkCore
                                 mIdx.Properties.Add(currentProp.Name);
                                 entityDescribtor.Indexes[(IndexProp as IndexAttribute).StartsWith] = mIdx;
                             }
-                            else 
+                            else
                             {
                                 mIdx = new ModelIndex();
                                 mIdx.IndexName = (IndexProp as IndexAttribute).StartsWith + "_" + idxNumber.ToString();
@@ -443,9 +447,9 @@ namespace Microsoft.EntityFrameworkCore
                                 entityDescribtor.Indexes.Add((IndexProp as IndexAttribute).StartsWith, mIdx);
                             }
                             entityDescribtor.EntityKeys.Add(currentProp.Name, entityType.Name);
-                        }                        
+                        }
                     }
-                    contextEntities.Add(prop.Name,entityDescribtor);
+                    contextEntities.Add(prop.Name, entityDescribtor);
                     if (!existingTableNames.ContainsKey(prop.Name))
                     {
                         existingTableNames.Add(prop.Name, entityDescribtor);
@@ -453,7 +457,7 @@ namespace Microsoft.EntityFrameworkCore
                     }
                 }
             }
-            SaveExistingNames(currentInfoPath);        
+            SaveExistingNames(currentInfoPath);
         }
         /// <summary>
         /// Create fluid names for each entity and field.
@@ -477,9 +481,9 @@ namespace Microsoft.EntityFrameworkCore
             .Where(n => n.GetParameters().Count() == 0).FirstOrDefault();
             if (entityBuilderMethod == null)
             {
-                throw(new Exception("Not found ModelBuilder<Entity>() method"));
+                throw (new Exception("Not found ModelBuilder<Entity>() method"));
             }
-            foreach( var entity in contextEntities)
+            foreach (var entity in contextEntities)
             {
                 MethodInfo EntityBuilderMethod = entityBuilderMethod.MakeGenericMethod(new Type[] { entity.Value.EntityType });
                 var eB = EntityBuilderMethod.Invoke(modelBuilder, null);
@@ -487,8 +491,8 @@ namespace Microsoft.EntityFrameworkCore
                 {
                     eB = RelationalEntityTypeBuilderExtensions.ToTable(eB as EntityTypeBuilder, entity.Value.EntityTableName);
                     string comment = (eB as EntityTypeBuilder).Metadata.GetComment();
-                    comment += String.IsNullOrWhiteSpace(comment) ? "": " ";
-                    (eB as EntityTypeBuilder).HasComment(comment +  entity.Key);
+                    comment += String.IsNullOrWhiteSpace(comment) ? "" : " ";
+                    (eB as EntityTypeBuilder).HasComment(comment + entity.Key);
                 }
                 if (entity.Value.EntityHasNoBaseType)
                 {
@@ -504,7 +508,7 @@ namespace Microsoft.EntityFrameworkCore
                 {
                     (eB as EntityTypeBuilder).UseXminAsConcurrencyToken();
                 }
-                foreach(var pName in entity.Value.TableFields)
+                foreach (var pName in entity.Value.TableFields)
                 {
                     Type eBGenericType = typeof(EntityTypeBuilder<>).MakeGenericType(new Type[] { entity.Value.EntityType });
                     MethodInfo mi = eBGenericType.GetMethods().Where(v => v.Name == "Property" && !v.IsGenericMethod).FirstOrDefault();
@@ -532,16 +536,16 @@ namespace Microsoft.EntityFrameworkCore
                         var VConverter = contextEntities.Values.FirstOrDefault(v => v.EntityType == pName.Value.Type);
                         if (VConverter != null && !pName.Value.NoValueConverter)
                         {
-                            
+
                             (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(VConverter.ValueConverter);
                         }
                     }
                 }
                 // Indexes
-                foreach(var idx in entity.Value.Indexes)
+                foreach (var idx in entity.Value.Indexes)
                 {
                     (eB as EntityTypeBuilder).HasIndex(idx.Value.Properties.ToArray()).HasName(idx.Value.IndexName).IsUnique(idx.Value.IsUnique);
-                }                
+                }
             }
             return modelBuilder;
         }

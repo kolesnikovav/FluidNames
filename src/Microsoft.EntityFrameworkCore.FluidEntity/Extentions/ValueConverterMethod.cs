@@ -9,11 +9,11 @@ namespace Microsoft.EntityFrameworkCore
     {
         /// <summary>
         /// Method FirstOrDefault is being used to convert Model to Clr. Clr type will be nullable
-        /// </summary>        
+        /// </summary>
         FirstOrDefault,
         /// <summary>
         /// Method First is being used to convert Model to Clr.
-        /// </summary>           
+        /// </summary>
 
         First
     }
@@ -21,16 +21,16 @@ namespace Microsoft.EntityFrameworkCore
     /// <summary>
     /// Indicates, what method is being used to convert from Model to Clr type
     /// </summary>
-    [AttributeUsage(AttributeTargets.Class|AttributeTargets.Property)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Property)]
     public class ValueConverterMethodAttribute : Attribute
     {
         /// <summary>
         /// Indicates, what method is being used to convert from Model to Clr type
-        /// </summary>        
+        /// </summary>
         public ValueConverterMethod Method { get; set; }
         /// <summary>
         /// Sets the metod to convert Model to Clr type
-        /// </summary>         
+        /// </summary>
 
         public ValueConverterMethodAttribute(ValueConverterMethod method)
         {

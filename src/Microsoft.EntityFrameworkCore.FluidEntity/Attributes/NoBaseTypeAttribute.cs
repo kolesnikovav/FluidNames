@@ -6,15 +6,15 @@ namespace Microsoft.EntityFrameworkCore
     /// Mark the entity as has no base type
     /// This is equivalent .HasBaseType((Type)null) fluent api
     /// but it can be applied at top class hierarchy level
-    /// </summary>       
+    /// </summary>
     [AttributeUsage(AttributeTargets.Class)]
     public class NoBaseTypeAttribute : Attribute
     {
         /// <summary>
         /// Mark the entity as has no base type
-        /// This is equivalent .HasBaseType((Type)null) fluent api 
+        /// This is equivalent .HasBaseType((Type)null) fluent api
         /// but it can be applied at top class hierarchy level
-        /// </summary>         
+        /// </summary>
         public NoBaseTypeAttribute() {}
     }
 }
