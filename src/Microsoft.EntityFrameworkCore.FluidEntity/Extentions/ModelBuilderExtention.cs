@@ -459,6 +459,7 @@ namespace Microsoft.EntityFrameworkCore
             }
             SaveExistingNames(currentInfoPath);
         }
+
         /// <summary>
         /// Create fluid names for each entity and field.
         /// </summary>
