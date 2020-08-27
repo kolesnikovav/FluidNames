@@ -37,5 +37,16 @@ namespace test
                 Assert.True(indexes[1].IsUnique);
             }
         }
+
+        [Fact]
+        public void EnsureVariableType_Test()
+        {
+            using (var db = new VariableTypeContext())
+            {
+                // var indexes = db.Model.FindRuntimeEntityType(typeof(CatWithIndex)).GetDeclaredIndexes().OrderBy(v => v.GetName()).ToArray();
+                // Assert.False(indexes[0].IsUnique);
+                // Assert.True(indexes[1].IsUnique);
+            }
+        }
     }
 }
