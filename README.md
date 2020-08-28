@@ -1,3 +1,10 @@
+<a href="https://www.nuget.org/packages/FluidNames">
+    <img alt="Nuget (with prereleases)" src="https://img.shields.io/nuget/vpre/FluidNames">
+</a>
+<a href="https://www.nuget.org/packages/FluidNames">
+    <img alt="Nuget" src="https://img.shields.io/nuget/dt/FluidNames">
+</a>
+
 # Why
 Some database providers doesn't allow long table, fields, keys names. If you have > 20 several entity types, manualy creating table/ field names may be tediously.
 This library allow you set start symblos for tables and fields and create unique fluid names for each entity.

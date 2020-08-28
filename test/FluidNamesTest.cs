@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Xunit;
 
 namespace test
@@ -27,23 +26,24 @@ namespace test
                 Assert.Single(CatWithKeyPartKeys);
             }
         }
-        // [Fact]
-        // public void EnsureIndex_Test()
-        // {
-        //     using (var db1 = new ContextWithIndex())
-        //     {
-        //         var indexes = db1.Model.FindRuntimeEntityType(typeof(CatWithIndex)).GetDeclaredIndexes().OrderBy(v => v.GetName()).ToArray();
-        //         Assert.False(indexes[0].IsUnique);
-        //         Assert.True(indexes[1].IsUnique);
-        //     }
-        // }
+        [Fact]
+        public void EnsureIndex_Test()
+        {
+            using (var db1 = new ContextWithIndex())
+            {
+                var indexName = db1.Model.FindRuntimeEntityType(typeof(CatWithIndex)).GetDeclaredIndexes().Where(v => v.GetName().ToUpperInvariant().Contains("NAME")).FirstOrDefault();
+                var indexAge = db1.Model.FindRuntimeEntityType(typeof(CatWithIndex)).GetDeclaredIndexes().Where(v => v.GetName().ToUpperInvariant().Contains("AGE")).FirstOrDefault();
+                Assert.False(indexAge.IsUnique);
+                Assert.True(indexName.IsUnique);
+            }
+        }
 
         // [Fact]
         // public void EnsureVariableType_Test()
         // {
         //     using (var db = new VariableTypeContext())
         //     {
-        //         // var indexes = db.Model.FindRuntimeEntityType(typeof(CatWithIndex)).GetDeclaredIndexes().OrderBy(v => v.GetName()).ToArray();
+        //         //var indexes = db.Model.FindRuntimeEntityType(typeof(CatWithIndex)).GetDeclaredIndexes().Where(v => v.GetName().Contains("")).FirstOrDefault();
         //         // Assert.False(indexes[0].IsUnique);
         //         // Assert.True(indexes[1].IsUnique);
         //     }
@@ -55,11 +55,11 @@ namespace test
             {
                 var cat2tablename = db.Model.FindRuntimeEntityType(typeof(CatTest2)).GetTableName();
                 var cat2id = db.Model.FindRuntimeEntityType(typeof(CatTest2)).FindProperty("Id").GetColumnName();
-                var cat2age = db.Model.FindRuntimeEntityType(typeof(CatTest2)).FindProperty("Age").GetColumnName();                
+                var cat2age = db.Model.FindRuntimeEntityType(typeof(CatTest2)).FindProperty("Age").GetColumnName();
                 Assert.StartsWith("Ref".ToUpperInvariant(), cat2tablename);
                 Assert.Equal("Id", cat2id);
                 Assert.StartsWith("Fld".ToUpperInvariant(), cat2age);
             }
-        }        
+        }
     }
 }
