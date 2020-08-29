@@ -38,6 +38,7 @@ namespace Microsoft.EntityFrameworkCore
             internal bool? IsRequired { get; set; } = null;
             internal string DefaultSQLValueForReference { get; set; }
             internal ValueConverter ValueConverterProperty { get; set; }
+            internal Type[] CanBeTypes { get; set; }
         }
 
         internal class ModelDataNames
@@ -238,7 +239,7 @@ namespace Microsoft.EntityFrameworkCore
         internal static void getEntities(DbContext context)
         {
             contextEntities.Clear();
-            // this code is to avoid unnessesary renaming existing entities/fields 
+            // this code is to avoid unnessesary renaming existing entities/fields
             var currentInfoPath = Path.Combine(Directory.GetCurrentDirectory(), context.GetType().Name + ".info.xml");
             if (File.Exists(currentInfoPath))
             {
@@ -259,6 +260,7 @@ namespace Microsoft.EntityFrameworkCore
             Type tDefaultSQLValueForReferenceAttr = typeof(DefaultSQLValueForReferenceAttribute);
             Type tDefaultSQLValueAttr = typeof(DefaultSQLValueAttribute);
             Type tUseXminAsConcurrencyTokenAttr = typeof(UseXminAsConcurrencyTokenAttribute);
+            Type tCanBeAttr = typeof(CanBeAttribute);
             // enumerate all DBSet<> (entity)
             int k = 1;
             int idxNumber = 1;

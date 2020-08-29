@@ -38,16 +38,17 @@ namespace test
             }
         }
 
-        // [Fact]
-        // public void EnsureVariableType_Test()
-        // {
-        //     using (var db = new VariableTypeContext())
-        //     {
-        //         //var indexes = db.Model.FindRuntimeEntityType(typeof(CatWithIndex)).GetDeclaredIndexes().Where(v => v.GetName().Contains("")).FirstOrDefault();
-        //         // Assert.False(indexes[0].IsUnique);
-        //         // Assert.True(indexes[1].IsUnique);
-        //     }
-        // }
+        [Fact]
+        public void EnsureVariableType_Test()
+        {
+            using (var db = new VariableTypeContext())
+            {
+                var indexes = db.Model.FindRuntimeEntityType(typeof(CatVariable)).GetStorageParameters();//.GetDeclaredIndexes().Where(v => v.GetName().Contains("")).FirstOrDefault();
+                var ee=1;
+                // Assert.False(indexes[0].IsUnique);
+                // Assert.True(indexes[1].IsUnique);
+            }
+        }
         [Fact]
         public void EnsureFluidNameWorks_Test()
         {

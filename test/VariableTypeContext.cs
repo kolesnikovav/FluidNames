@@ -25,6 +25,6 @@ namespace test
         public int Id {get;set;}
 
         [CanBe(new Type[] {typeof(bool), typeof(string)})]
-        public int Age {get;set;}
+        public object Age {get;set;}
     }
 }
