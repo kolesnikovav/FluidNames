@@ -417,6 +417,11 @@ namespace Microsoft.EntityFrameworkCore
                                 fldDescribtion.ValueConverterProperty = vConverter;
                             }
                         }
+                        CanBeAttribute canBeTypes = (CanBeAttribute)pInfo.GetCustomAttribute(tCanBeAttr);
+                        if (canBeTypes != null)
+                        {
+                            fldDescribtion.CanBeTypes = canBeTypes.AvailibleTypes;
+                        }
                         props.Add(pInfo.Name, fldDescribtion);
                     }
                     entityDescribtor.TableFields = props;
@@ -542,6 +547,11 @@ namespace Microsoft.EntityFrameworkCore
 
                             (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(VConverter.ValueConverter);
                         }
+                    }
+                    // can be types
+                    if (pName.Value.CanBeTypes.Count() > 0)
+                    {
+                        //(eB as EntityTypeBuilder).Property(pName.Key).HasConversion(new ValueConverter());
                     }
                 }
                 // Indexes
