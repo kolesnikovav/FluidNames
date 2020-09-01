@@ -31,6 +31,14 @@ namespace Microsoft.EntityFrameworkCore
         /// <summary>
         /// Default constructor
         /// </summary>
+        public VariableType (object val)
+        {
+            InstanceType = val.GetType();
+            Value = val;
+        }
+        /// <summary>
+        /// Default constructor
+        /// </summary>
         public void SetVal<T> (T val)
         {
             InstanceType = typeof(T);

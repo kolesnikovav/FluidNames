@@ -43,10 +43,16 @@ namespace test
         {
             using (var db = new VariableTypeContext())
             {
-                var indexes = db.Model.FindRuntimeEntityType(typeof(CatVariable)).GetStorageParameters();//.GetDeclaredIndexes().Where(v => v.GetName().Contains("")).FirstOrDefault();
-                var ee=1;
-                // Assert.False(indexes[0].IsUnique);
-                // Assert.True(indexes[1].IsUnique);
+                db.Cats.Add(new CatVariable
+                {
+                    Age = new VariableType(typeof(string), "less 2 years")
+                });
+                db.Cats.Add(new CatVariable
+                {
+                    Age = new VariableType(typeof(bool), false)
+                });
+                db.SaveChanges();
+                var q = db.Cats.ToList();
             }
         }
         [Fact]

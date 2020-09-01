@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Reflection;
 using System.IO;
 using System.Xml;
+using System.Text.Json;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace Microsoft.EntityFrameworkCore
@@ -132,6 +133,52 @@ namespace Microsoft.EntityFrameworkCore
                                 );
             ExpressionCLRModel = Expression.Lambda(callExpr, parameterClrFind);
             var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelCLR, ExpressionCLRModel, null });
+            return res as ValueConverter;
+        }
+        internal static ValueConverter GetConverterJSON (DbContext context, string nameDBSet, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault)
+        {
+            JsonSerializerOptions jsonSerializerOptions = new JsonSerializerOptions();
+            Type TClr = typeof(string);
+            Type TModel = typeof(VariableType);
+            Type tVConverter = typeof(ValueConverter<,>);
+            Type gVConverter = tVConverter.MakeGenericType(new Type[] { TModel, TClr });
+            Type tFunc = typeof(Func<,>);
+            Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] { TModel, TClr });
+            Type tFuncCLRModel = tFunc.MakeGenericType(new Type[] { TClr, TModel });
+            Type tFuncModelFind = tFunc.MakeGenericType(new Type[] { TModel, typeof(bool) });
+            Type tIQueryable = typeof(IQueryable<>);
+            Type tIQueryableModel = tIQueryable.MakeGenericType(TModel);
+            //**** model - clr conversion ************
+            var mi = typeof(JsonSerializer).GetMethods(BindingFlags.Static| BindingFlags.Public)
+            .Where( m => m.IsGenericMethod && m.Name == "Serialize" && m.ReturnType == typeof(string)).FirstOrDefault();
+            var miGeneric = mi.MakeGenericMethod(new Type[] { typeof(VariableType) });
+            ParameterExpression parameterModel = Expression.Parameter(TModel, "v");
+            ConstructorInfo ci = typeof(VariableType).GetConstructors().Where(v => v.GetParameters().Count() == 1 && v.GetParameters().First().ParameterType == typeof(object) ).First();
+            NewExpression newExpression = Expression.New( ci, new Expression[] {parameterModel});
+            ConstantExpression jOpt = Expression.Constant(jsonSerializerOptions);
+            Expression callExpr = Expression.Call(
+                                    miGeneric,
+                                    new Expression[] {
+                                        newExpression,
+                                        jOpt
+                                    }
+                                );
+            var ExpressionModelClr = Expression.Lambda(callExpr, parameterModel);
+            //**** clr - model ************
+            var mDeserialize = typeof(JsonSerializer).GetMethods(BindingFlags.Static| BindingFlags.Public)
+            .Where( m => m.IsGenericMethod && m.Name == "Deserialize").FirstOrDefault();
+            var mDeserializeGeneric = mDeserialize.MakeGenericMethod(new Type[] { typeof(VariableType) });
+            ParameterExpression parameterClr = Expression.Parameter(TClr, "v");
+            Expression callExprDeserialize = Expression.Call(
+                                    mDeserializeGeneric,
+                                    new Expression[] {
+                                        parameterClr,
+                                        jOpt
+                                    }
+                                );
+            var ExpressionClrModel = Expression.Lambda(callExprDeserialize, parameterClr);
+
+            var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelClr, ExpressionClrModel, null });
             return res as ValueConverter;
         }
         internal static void ReadExistingNames(string filePath)
@@ -549,9 +596,9 @@ namespace Microsoft.EntityFrameworkCore
                         }
                     }
                     // can be types
-                    if (pName.Value.CanBeTypes.Count() > 0)
+                    if (pName.Value.CanBeTypes != null && pName.Value.CanBeTypes.Count() > 0)
                     {
-                        //(eB as EntityTypeBuilder).Property(pName.Key).HasConversion(new ValueConverter());
+                        (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(GetConverterJSON(null,""));
                     }
                 }
                 // Indexes
