@@ -21,6 +21,8 @@ namespace Microsoft.EntityFrameworkCore
         private static readonly Dictionary<string, ModelDataNames> existingTableNames = new Dictionary<string, ModelDataNames>();
         private static readonly Dictionary<string, ModelDataNames> contextEntities = new Dictionary<string, ModelDataNames>();
 
+        private static readonly Dictionary<Type,string> entityTypes = new Dictionary<Type, string>();
+
         private static bool contextEntitiesExists = false;
         internal class ModelIndex
         {
@@ -135,7 +137,7 @@ namespace Microsoft.EntityFrameworkCore
             var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelCLR, ExpressionCLRModel, null });
             return res as ValueConverter;
         }
-        internal static ValueConverter GetConverterJSON (DbContext context, string nameDBSet, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault)
+        internal static ValueConverter GetConverterJSON (DbContext context, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault)
         {
             JsonSerializerOptions jsonSerializerOptions = new JsonSerializerOptions();
             Type TClr = typeof(string);
@@ -504,6 +506,7 @@ namespace Microsoft.EntityFrameworkCore
                         }
                     }
                     contextEntities.Add(prop.Name, entityDescribtor);
+                    entityTypes.Add(entityType, prop.Name);
                     if (!existingTableNames.ContainsKey(prop.Name))
                     {
                         existingTableNames.Add(prop.Name, entityDescribtor);
@@ -591,14 +594,13 @@ namespace Microsoft.EntityFrameworkCore
                         var VConverter = contextEntities.Values.FirstOrDefault(v => v.EntityType == pName.Value.Type);
                         if (VConverter != null && !pName.Value.NoValueConverter)
                         {
-
                             (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(VConverter.ValueConverter);
                         }
                     }
                     // can be types
                     if (pName.Value.CanBeTypes != null && pName.Value.CanBeTypes.Count() > 0)
                     {
-                        (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(GetConverterJSON(null,""));
+                        (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(GetConverterJSON(context));
                     }
                 }
                 // Indexes

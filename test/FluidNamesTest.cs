@@ -45,11 +45,15 @@ namespace test
             {
                 db.Cats.Add(new CatVariable
                 {
-                    Age = new VariableType(typeof(string), "less 2 years")
+                    Age = new VariableType("less 2 years")
                 });
                 db.Cats.Add(new CatVariable
                 {
-                    Age = new VariableType(typeof(bool), false)
+                    Age = new VariableType( false)
+                });
+                db.Cats.Add(new CatVariable
+                {
+                    Age = new VariableType( new AgeVariant() { Describtion = "1/2 years"})
                 });
                 db.SaveChanges();
                 var q = db.Cats.ToList();

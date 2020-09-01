@@ -9,6 +9,7 @@ namespace test
     public class VariableTypeContext : DbContext
     {
         public DbSet<CatVariable> Cats { get; set; }
+        public DbSet<AgeVariant> AgeVariants { get; set; }
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             optionsBuilder.UseInMemoryDatabase("test");
@@ -24,7 +25,13 @@ namespace test
         [Key]
         public int Id {get;set;}
 
-        [CanBe(new Type[] {typeof(bool), typeof(string)})]
+        [CanBe(new Type[] {typeof(bool), typeof(string), typeof (AgeVariant)})]
         public VariableType Age {get;set;}
+    }
+    public class AgeVariant
+    {
+        [Key]
+        public int Id {get;set;}
+        public string Describtion {get;set;}
     }
 }
