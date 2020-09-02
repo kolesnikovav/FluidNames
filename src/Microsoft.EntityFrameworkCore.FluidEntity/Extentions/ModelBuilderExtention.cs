@@ -20,9 +20,8 @@ namespace Microsoft.EntityFrameworkCore
     {
         private static readonly Dictionary<string, ModelDataNames> existingTableNames = new Dictionary<string, ModelDataNames>();
         private static readonly Dictionary<string, ModelDataNames> contextEntities = new Dictionary<string, ModelDataNames>();
-
         private static readonly Dictionary<Type,string> entityTypes = new Dictionary<Type, string>();
-
+        private static JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions();
         private static bool contextEntitiesExists = false;
         internal class ModelIndex
         {
@@ -90,8 +89,7 @@ namespace Microsoft.EntityFrameworkCore
             string KeyName = null;
             if (!GetKeyPropertyOfEntity(TModel, out TClr, out KeyName)) return null;
             if (TClr == TModel) return null;
-            Type tVConverter = typeof(ValueConverter<,>);
-            Type gVConverter = tVConverter.MakeGenericType(new Type[] { TModel, TClr });
+            Type gVConverter = ReflectionUtils.GetGenericValueConverter( TModel, TClr);
             Type tFunc = typeof(Func<,>);
             Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] { TModel, TClr });
             Type tFuncCLRModel = tFunc.MakeGenericType(new Type[] { TClr, TModel });
@@ -109,25 +107,10 @@ namespace Microsoft.EntityFrameworkCore
             MemberExpression propertyModelFind = Expression.Property(parameterModelFind, KeyName);
             Expression FindPredicate = Expression.Equal(propertyModelFind, parameterClrFind);
             var eFirstOrDefault = Expression.Lambda(tFuncModelFind, FindPredicate, new ParameterExpression[] { parameterModelFind });
-            MethodInfo mFirstOrDefault = null;
-            MethodInfo mGFirstOrDefault = null;
-
-            if (modelClrMethod == ValueConverterMethod.FirstOrDefault)
-            {
-                mFirstOrDefault = typeof(Queryable).GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .Where(v => v.Name == "FirstOrDefault" && v.GetParameters().Count() == 2).First();
-                mGFirstOrDefault = mFirstOrDefault.MakeGenericMethod(TModel);
-            }
-            else if (modelClrMethod == ValueConverterMethod.First)
-            {
-                mFirstOrDefault = typeof(Queryable).GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .Where(v => v.Name == "First" && v.GetParameters().Count() == 2).First();
-                mGFirstOrDefault = mFirstOrDefault.MakeGenericMethod(TModel);
-            }
 
             MemberExpression propertyDBSet = Expression.Property(Expression.Constant(context), nameDBSet);
             Expression callExpr = Expression.Call(
-                                    mGFirstOrDefault,
+                                    ReflectionUtils.FindMethod(modelClrMethod, TModel),
                                     new Expression[] {
                                         propertyDBSet,
                                         eFirstOrDefault
@@ -139,11 +122,9 @@ namespace Microsoft.EntityFrameworkCore
         }
         internal static ValueConverter GetConverterJSON (DbContext context, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault)
         {
-            JsonSerializerOptions jsonSerializerOptions = new JsonSerializerOptions();
             Type TClr = typeof(string);
             Type TModel = typeof(VariableType);
-            Type tVConverter = typeof(ValueConverter<,>);
-            Type gVConverter = tVConverter.MakeGenericType(new Type[] { TModel, TClr });
+            Type gVConverter = ReflectionUtils.GetGenericValueConverter( TModel, TClr);
             Type tFunc = typeof(Func<,>);
             Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] { TModel, TClr });
             Type tFuncCLRModel = tFunc.MakeGenericType(new Type[] { TClr, TModel });
@@ -151,13 +132,11 @@ namespace Microsoft.EntityFrameworkCore
             Type tIQueryable = typeof(IQueryable<>);
             Type tIQueryableModel = tIQueryable.MakeGenericType(TModel);
             //**** model - clr conversion ************
-            var mi = typeof(JsonSerializer).GetMethods(BindingFlags.Static| BindingFlags.Public)
-            .Where( m => m.IsGenericMethod && m.Name == "Serialize" && m.ReturnType == typeof(string)).FirstOrDefault();
-            var miGeneric = mi.MakeGenericMethod(new Type[] { typeof(VariableType) });
-            ParameterExpression parameterModel = Expression.Parameter(TModel, "v");
-            ConstructorInfo ci = typeof(VariableType).GetConstructors().Where(v => v.GetParameters().Count() == 1 && v.GetParameters().First().ParameterType == typeof(object) ).First();
+            var miGeneric =  ReflectionUtils.JSONSerializeMethod();
+            ParameterExpression parameterModel = Expression.Parameter(TModel, "a");
+            ConstructorInfo ci = ReflectionUtils.VarTypeFromObjectCtor();
             NewExpression newExpression = Expression.New( ci, new Expression[] {parameterModel});
-            ConstantExpression jOpt = Expression.Constant(jsonSerializerOptions);
+            ConstantExpression jOpt = Expression.Constant(_jsonSerializerOptions);
             Expression callExpr = Expression.Call(
                                     miGeneric,
                                     new Expression[] {
@@ -167,9 +146,7 @@ namespace Microsoft.EntityFrameworkCore
                                 );
             var ExpressionModelClr = Expression.Lambda(callExpr, parameterModel);
             //**** clr - model ************
-            var mDeserialize = typeof(JsonSerializer).GetMethods(BindingFlags.Static| BindingFlags.Public)
-            .Where( m => m.IsGenericMethod && m.Name == "Deserialize").FirstOrDefault();
-            var mDeserializeGeneric = mDeserialize.MakeGenericMethod(new Type[] { typeof(VariableType) });
+            var mDeserializeGeneric = ReflectionUtils.JSONDeserializeMethod();
             ParameterExpression parameterClr = Expression.Parameter(TClr, "v");
             Expression callExprDeserialize = Expression.Call(
                                     mDeserializeGeneric,
@@ -179,7 +156,6 @@ namespace Microsoft.EntityFrameworkCore
                                     }
                                 );
             var ExpressionClrModel = Expression.Lambda(callExprDeserialize, parameterClr);
-
             var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelClr, ExpressionClrModel, null });
             return res as ValueConverter;
         }
@@ -611,5 +587,18 @@ namespace Microsoft.EntityFrameworkCore
             }
             return modelBuilder;
         }
+    
+        /// <summary>
+        /// Create fluid names for each entity and field with json serializations options.
+        /// </summary>
+        /// <param name="modelBuilder">The <see cref="ModelBuilder"/> to enable fluid names feature.</param>
+        /// <param name="context">The <see cref="DbContext"/> Instance of you DBContext to be configured.</param>
+        /// <param name="jsonSerializerOptions">Options for json serialization for variable types</param>
+        /// <returns>The <see cref="ModelBuilder"/> had enabled fluid names feature.</returns>
+        public static ModelBuilder CreateFluidNames(this ModelBuilder modelBuilder, DbContext context, JsonSerializerOptions jsonSerializerOptions)
+        {
+            _jsonSerializerOptions = jsonSerializerOptions;
+            return CreateFluidNames(modelBuilder, context);
+        }    
     }
 }

@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <PackageId>FluidNames</PackageId>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
     <Authors>Aleksandr Kolesnikov</Authors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AssemblyName>Microsoft.EntityFrameworkCore.FluidEntity</AssemblyName>
@@ -11,7 +11,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/kolesnikovav/FluidNames.git</RepositoryUrl>
-    <Description>A plugin for Microsoft.EntityFrameworkCore to support automatically names tables and fields. Autocreate ValueConverter for refferenced entities/ properties.</Description>       
+    <Description>FluidNames is the Entity Framework Core plugin for create some enhancements in your EF Core database context.</Description>       
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" Version="2019.1.3" />

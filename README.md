@@ -5,10 +5,14 @@
     <img alt="Nuget" src="https://img.shields.io/nuget/dt/FluidNames">
 </a>
 
-# Why
-Some database providers doesn't allow long table, fields, keys names. If you have > 20 several entity types, manualy creating table/ field names may be tediously.
-This library allow you set start symblos for tables and fields and create unique fluid names for each entity.
-Anover feature is creating ``` ValueConverter ``` for each entities. This is used to create relation between Entity and CLR Type. For creation of ``` ValueConverter ``` Key property of Entity is used. With this feature, you can refference the property of entity to anover entity type directly.
+# About
+FluidNames is the Entity Framework Core plugin for create some enhancements in your EF Core database context.
+## Key features:  
+    Create short names for entity tables, fields, indexes. 
+    Create ``` ValueConverter ``` expressions for references.
+    Adds the ability to store several data types in one field.
+    Adds some attributes for use instead of Fluent API.
+
 
 ```csharp
     public class AnimalOwner
