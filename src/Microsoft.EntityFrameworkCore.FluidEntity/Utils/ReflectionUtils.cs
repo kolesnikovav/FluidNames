@@ -22,6 +22,29 @@ namespace Microsoft.EntityFrameworkCore
         => typeof(JsonSerializer).GetMethods(BindingFlags.Static| BindingFlags.Public)
             .Where( m => m.IsGenericMethod && m.Name == "Deserialize").FirstOrDefault()
             .MakeGenericMethod(new Type[] { typeof(VariableType) });
+        internal static MethodInfo ContainsKeyMethod ()
+        => typeof(Dictionary<Type, string>).GetMethods()
+            .Where( m => !m.IsGenericMethod && m.Name == "ContainsKey").FirstOrDefault();
+
+        internal static MethodInfo GetTypeMethod ()
+        => typeof(object).GetMethods()
+            .Where( m => m.Name == "GetType").FirstOrDefault();            
+
+        internal static Expression IsEntityExpression(ParameterExpression parameterModel, ConstantExpression entityCollection)
+        {
+            Expression callExprGetType = Expression.Call(
+                                    parameterModel,
+                                    GetTypeMethod()
+                                );
+            Expression callContainsKey = Expression.Call(
+                entityCollection,
+                ContainsKeyMethod (),
+                new Expression[] {
+                    callExprGetType
+                }
+            );
+            return Expression.Lambda(callContainsKey, parameterModel );
+        }           
 
         internal static MethodInfo FindMethod (ValueConverterMethod mFind, Type modelType)
         {

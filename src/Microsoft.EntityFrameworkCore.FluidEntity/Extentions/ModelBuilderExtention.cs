@@ -124,6 +124,8 @@ namespace Microsoft.EntityFrameworkCore
             //**** model - clr conversion ************
             var miGeneric =  ReflectionUtils.JSONSerializeMethod();
             ParameterExpression parameterModel = Expression.Parameter(TModel, "a");
+            //*****
+            ConstantExpression entities = Expression.Constant(entityTypes);
             ConstructorInfo ci = ReflectionUtils.VarTypeFromObjectCtor();
             NewExpression newExpression = Expression.New( ci, new Expression[] {parameterModel});
             ConstantExpression jOpt = Expression.Constant(_jsonSerializerOptions);
@@ -135,6 +137,13 @@ namespace Microsoft.EntityFrameworkCore
                                     }
                                 );
             var ExpressionModelClr = Expression.Lambda(callExpr, parameterModel);
+
+            var ExpressionModelClrCommon = Expression.IfThenElse(
+                ReflectionUtils.IsEntityExpression( parameterModel, entities),
+                ExpressionModelClr,
+                ExpressionModelClr
+            );
+
             //**** clr - model ************
             var mDeserializeGeneric = ReflectionUtils.JSONDeserializeMethod();
             ParameterExpression parameterClr = Expression.Parameter(TClr, "v");
@@ -146,7 +155,7 @@ namespace Microsoft.EntityFrameworkCore
                                     }
                                 );
             var ExpressionClrModel = Expression.Lambda(callExprDeserialize, parameterClr);
-            var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelClr, ExpressionClrModel, null });
+            var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelClrCommon, ExpressionClrModel, null });
             return res as ValueConverter;
         }
         internal static void getEntities(DbContext context)
