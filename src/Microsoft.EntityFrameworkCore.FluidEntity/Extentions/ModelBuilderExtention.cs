@@ -112,6 +112,9 @@ namespace Microsoft.EntityFrameworkCore
         }
         internal static ValueConverter GetConverterJSON (DbContext context, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault)
         {
+            ConstantExpression entities = Expression.Constant(entityTypes);
+            ConstantExpression jOpt = Expression.Constant(_jsonSerializerOptions);
+
             Type TClr = typeof(string);
             Type TModel = typeof(VariableType);
             Type gVConverter = ReflectionUtils.GetGenericValueConverter( TModel, TClr);
@@ -124,11 +127,9 @@ namespace Microsoft.EntityFrameworkCore
             //**** model - clr conversion ************
             var miGeneric =  ReflectionUtils.JSONSerializeMethod();
             ParameterExpression parameterModel = Expression.Parameter(TModel, "a");
-            //*****
-            ConstantExpression entities = Expression.Constant(entityTypes);
             ConstructorInfo ci = ReflectionUtils.VarTypeFromObjectCtor();
             NewExpression newExpression = Expression.New( ci, new Expression[] {parameterModel});
-            ConstantExpression jOpt = Expression.Constant(_jsonSerializerOptions);
+            
             Expression callExpr = Expression.Call(
                                     miGeneric,
                                     new Expression[] {
@@ -137,6 +138,16 @@ namespace Microsoft.EntityFrameworkCore
                                     }
                                 );
             var ExpressionModelClr = Expression.Lambda(callExpr, parameterModel);
+            //******
+            // lambda for entity type serialize (Only key property is needed)
+            var qq = ReflectionUtils.GetKeyFieldExpression( parameterModel, entities);
+
+
+
+
+
+
+            //*****
 
             var ExpressionModelClrCommon = Expression.IfThenElse(
                 ReflectionUtils.IsEntityExpression( parameterModel, entities),

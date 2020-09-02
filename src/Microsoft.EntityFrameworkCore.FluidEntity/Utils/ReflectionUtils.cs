@@ -26,9 +26,17 @@ namespace Microsoft.EntityFrameworkCore
         => typeof(Dictionary<Type, string>).GetMethods()
             .Where( m => !m.IsGenericMethod && m.Name == "ContainsKey").FirstOrDefault();
 
+        internal static MethodInfo TryGetValueMethod ()
+        => typeof(Dictionary<Type, string>).GetMethods()
+            .Where( m => !m.IsGenericMethod && m.Name == "TryGetValue").FirstOrDefault();            
+
+
         internal static MethodInfo GetTypeMethod ()
         => typeof(object).GetMethods()
-            .Where( m => m.Name == "GetType").FirstOrDefault();            
+            .Where( m => m.Name == "GetType").FirstOrDefault();
+
+        internal static Expression callExpressionGetType (ParameterExpression parameterModel)
+        =>  Expression.Call( parameterModel, GetTypeMethod());          
 
         internal static Expression IsEntityExpression(ParameterExpression parameterModel, ConstantExpression entityCollection)
         {
@@ -40,11 +48,25 @@ namespace Microsoft.EntityFrameworkCore
                 entityCollection,
                 ContainsKeyMethod (),
                 new Expression[] {
-                    callExprGetType
+                    callExpressionGetType (parameterModel)
                 }
             );
             return Expression.Lambda(callContainsKey, parameterModel );
-        }           
+        }
+        internal static Expression GetKeyFieldExpression(ParameterExpression parameterModel, ConstantExpression entityCollection)
+        {
+            
+            Expression ev = Expression.Variable(typeof(string));
+            Expression callEntityCollectionName = Expression.Call(
+                entityCollection,
+                TryGetValueMethod(),
+                new Expression[] {
+                    callExpressionGetType (parameterModel),
+                    ev
+                }
+            );
+            return Expression.Lambda(callEntityCollectionName, parameterModel );
+        }                  
 
         internal static MethodInfo FindMethod (ValueConverterMethod mFind, Type modelType)
         {
