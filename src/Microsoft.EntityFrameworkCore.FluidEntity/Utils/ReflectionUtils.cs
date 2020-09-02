@@ -53,19 +53,23 @@ namespace Microsoft.EntityFrameworkCore
             );
             return Expression.Lambda(callContainsKey, parameterModel );
         }
+        internal static string GetEntityCollectionName(Dictionary<Type, string> entities, Type entityType)
+        {
+            string o = String.Empty;
+            entities.TryGetValue(entityType, out o);
+            return o;
+        }        
         internal static Expression GetKeyFieldExpression(ParameterExpression parameterModel, ConstantExpression entityCollection)
         {
-            
-            Expression ev = Expression.Variable(typeof(string));
+            MethodInfo m = typeof(ReflectionUtils).GetMethod("GetEntityCollectionName");
             Expression callEntityCollectionName = Expression.Call(
-                entityCollection,
-                TryGetValueMethod(),
+                m,
                 new Expression[] {
-                    callExpressionGetType (parameterModel),
-                    ev
+                    entityCollection,
+                    callExpressionGetType (parameterModel)
                 }
             );
-            return Expression.Lambda(callEntityCollectionName, parameterModel );
+            return callEntityCollectionName;
         }                  
 
         internal static MethodInfo FindMethod (ValueConverterMethod mFind, Type modelType)
