@@ -45,7 +45,7 @@ namespace Microsoft.EntityFrameworkCore
         internal Dictionary<string, ModelFields> TableFields { get; set; } = new Dictionary<string, ModelFields>();
         internal Dictionary<string, string> EntityKeys { get; set; } = new Dictionary<string, string>();
         internal Dictionary<string, ModelIndex> Indexes { get; set; } = new Dictionary<string, ModelIndex>();
-    }        
+    }
     /// <summary>
     /// Represents a plugin for Microsoft.EntityFrameworkCore to support automatically set fluid names.
     /// </summary>
@@ -81,15 +81,15 @@ namespace Microsoft.EntityFrameworkCore
             if (TClr == TModel) return null;
             Type gVConverter = ReflectionUtils.GetGenericValueConverter( TModel, TClr);
             Type tFunc = typeof(Func<,>);
-            Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] { TModel, TClr });
+            //Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] { TModel, TClr });
             Type tFuncCLRModel = tFunc.MakeGenericType(new Type[] { TClr, TModel });
             Type tFuncModelFind = tFunc.MakeGenericType(new Type[] { TModel, typeof(bool) });
             Type tIQueryable = typeof(IQueryable<>);
             Type tIQueryableModel = tIQueryable.MakeGenericType(TModel);
             //**** model - clr conversion ************
-            ParameterExpression parameterModel = Expression.Parameter(TModel, "v");
-            MemberExpression propertyModel = Expression.Property(parameterModel, KeyName);
-            var ExpressionModelCLR = Expression.Lambda(tFuncModelCLR, propertyModel, parameterModel);
+            // ParameterExpression parameterModel = Expression.Parameter(TModel, "v");
+            // MemberExpression propertyModel = Expression.Property(parameterModel, KeyName);
+            //var ExpressionModelCLR = ReflectionUtils.GetModelCLRExpression(TModel);
             //**** clr - model conversion ************
             LambdaExpression ExpressionCLRModel = null;
             ParameterExpression parameterModelFind = Expression.Parameter(TModel, "a");
@@ -107,7 +107,7 @@ namespace Microsoft.EntityFrameworkCore
                                     }
                                 );
             ExpressionCLRModel = Expression.Lambda(callExpr, parameterClrFind);
-            var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelCLR, ExpressionCLRModel, null });
+            var res = Activator.CreateInstance(gVConverter, new object[] { ReflectionUtils.GetModelCLRExpression(TModel), ExpressionCLRModel, null });
             return res as ValueConverter;
         }
         internal static ValueConverter GetConverterJSON (DbContext context, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault)
@@ -129,7 +129,7 @@ namespace Microsoft.EntityFrameworkCore
             ParameterExpression parameterModel = Expression.Parameter(TModel, "a");
             ConstructorInfo ci = ReflectionUtils.VarTypeFromObjectCtor();
             NewExpression newExpression = Expression.New( ci, new Expression[] {parameterModel});
-            
+
             Expression callExpr = Expression.Call(
                                     miGeneric,
                                     new Expression[] {
@@ -148,13 +148,11 @@ namespace Microsoft.EntityFrameworkCore
 
 
             //*****
-
             var ExpressionModelClrCommon = Expression.IfThenElse(
                 ReflectionUtils.IsEntityExpression( parameterModel, entities),
                 ExpressionModelClr,
                 ExpressionModelClr
             );
-
             //**** clr - model ************
             var mDeserializeGeneric = ReflectionUtils.JSONDeserializeMethod();
             ParameterExpression parameterClr = Expression.Parameter(TClr, "v");
@@ -494,7 +492,6 @@ namespace Microsoft.EntityFrameworkCore
             }
             return modelBuilder;
         }
-    
         /// <summary>
         /// Create fluid names for each entity and field with json serializations options.
         /// </summary>
@@ -506,6 +503,6 @@ namespace Microsoft.EntityFrameworkCore
         {
             _jsonSerializerOptions = jsonSerializerOptions;
             return CreateFluidNames(modelBuilder, context);
-        }    
+        }
     }
 }

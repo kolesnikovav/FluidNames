@@ -28,7 +28,7 @@ namespace Microsoft.EntityFrameworkCore
 
         internal static MethodInfo TryGetValueMethod ()
         => typeof(Dictionary<Type, string>).GetMethods()
-            .Where( m => !m.IsGenericMethod && m.Name == "TryGetValue").FirstOrDefault();            
+            .Where( m => !m.IsGenericMethod && m.Name == "TryGetValue").FirstOrDefault();
 
 
         internal static MethodInfo GetTypeMethod ()
@@ -36,7 +36,7 @@ namespace Microsoft.EntityFrameworkCore
             .Where( m => m.Name == "GetType").FirstOrDefault();
 
         internal static Expression callExpressionGetType (ParameterExpression parameterModel)
-        =>  Expression.Call( parameterModel, GetTypeMethod());          
+        =>  Expression.Call( parameterModel, GetTypeMethod());
 
         internal static Expression IsEntityExpression(ParameterExpression parameterModel, ConstantExpression entityCollection)
         {
@@ -53,12 +53,19 @@ namespace Microsoft.EntityFrameworkCore
             );
             return Expression.Lambda(callContainsKey, parameterModel );
         }
-        internal static string GetEntityCollectionName(Dictionary<Type, string> entities, Type entityType)
+        internal static Expression GetModelCLRExpression(Type TModel)
         {
-            string o = String.Empty;
-            entities.TryGetValue(entityType, out o);
-            return o;
-        }        
+            Type ClrType = null;
+            string keyName = String.Empty;
+            var q = ModelBuilderExtensions.GetKeyPropertyOfEntity(TModel, out ClrType, out keyName);
+
+            Type tFunc = typeof(Func<,>);
+            Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] { TModel, ClrType });
+
+            ParameterExpression p = Expression.Parameter(TModel,"e");
+            MemberExpression propertyModel = Expression.Property(p, keyName);
+            return Expression.Lambda(tFuncModelCLR, propertyModel, p);
+        }
         internal static Expression GetKeyFieldExpression(ParameterExpression parameterModel, ConstantExpression entityCollection)
         {
             MethodInfo m = typeof(ReflectionUtils).GetMethod("GetEntityCollectionName");
@@ -70,7 +77,7 @@ namespace Microsoft.EntityFrameworkCore
                 }
             );
             return callEntityCollectionName;
-        }                  
+        }
 
         internal static MethodInfo FindMethod (ValueConverterMethod mFind, Type modelType)
         {
@@ -85,7 +92,7 @@ namespace Microsoft.EntityFrameworkCore
                return typeof(Queryable).GetMethods(BindingFlags.Public | BindingFlags.Static)
                 .Where(v => v.Name == "First" && v.GetParameters().Count() == 2).First()
                 .MakeGenericMethod(modelType);
-            }            
+            }
         }
         internal static ConstructorInfo VarTypeFromObjectCtor ()
         => typeof(VariableType).GetConstructors().Where(v => v.GetParameters().Count() == 1 && v.GetParameters().First().ParameterType == typeof(object) ).First();

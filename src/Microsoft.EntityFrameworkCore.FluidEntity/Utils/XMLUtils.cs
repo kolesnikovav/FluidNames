@@ -28,7 +28,7 @@ namespace Microsoft.EntityFrameworkCore
         }
         /// <summary>
         /// Read context information to avoid unnessesary rename tables and fields
-        /// </summary>              
+        /// </summary>
         internal static void ReadExistingNames(string filePath, Dictionary<string, ModelDataNames> existingTableNames)
         {
             existingTableNames.Clear();
@@ -134,6 +134,6 @@ namespace Microsoft.EntityFrameworkCore
             root.AppendChild(node);
             doc.AppendChild(root);
             doc.Save(filePath);
-        }    
+        }
     }
 }
