@@ -13,6 +13,39 @@ using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace Microsoft.EntityFrameworkCore
 {
+    internal class ModelIndex
+    {
+        internal string IndexName { get; set; }
+        internal bool IsUnique { get; set; } = false;
+        internal List<string> Properties { get; set; } = new List<string>();
+        internal string Fields;
+    }
+    internal class ModelFields
+    {
+        internal string Name { get; set; }
+        internal Type Type { get; set; }
+        internal bool RenameField { get; set; } = false;
+        internal bool NoValueConverter { get; set; } = false;
+
+        internal bool? IsRequired { get; set; } = null;
+        internal string DefaultSQLValueForReference { get; set; }
+        internal ValueConverter ValueConverterProperty { get; set; }
+        internal Type[] CanBeTypes { get; set; }
+    }
+
+    internal class ModelDataNames
+    {
+        internal Type EntityType { get; set; }
+        internal string TypeFullName { get; set; }
+        internal ValueConverter ValueConverter { get; set; }
+        internal string EntityTableName { get; set; }
+        internal bool RenameTable { get; set; } = false;
+        internal bool EntityHasNoBaseType { get; set; }
+        internal bool UseXminAsConcurrencyToken { get; set; }
+        internal Dictionary<string, ModelFields> TableFields { get; set; } = new Dictionary<string, ModelFields>();
+        internal Dictionary<string, string> EntityKeys { get; set; } = new Dictionary<string, string>();
+        internal Dictionary<string, ModelIndex> Indexes { get; set; } = new Dictionary<string, ModelIndex>();
+    }        
     /// <summary>
     /// Represents a plugin for Microsoft.EntityFrameworkCore to support automatically set fluid names.
     /// </summary>
@@ -23,49 +56,6 @@ namespace Microsoft.EntityFrameworkCore
         private static readonly Dictionary<Type,string> entityTypes = new Dictionary<Type, string>();
         private static JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions();
         private static bool contextEntitiesExists = false;
-        internal class ModelIndex
-        {
-            internal string IndexName { get; set; }
-            internal bool IsUnique { get; set; } = false;
-            internal List<string> Properties { get; set; } = new List<string>();
-            internal string Fields;
-        }
-        internal class ModelFields
-        {
-            internal string Name { get; set; }
-            internal Type Type { get; set; }
-            internal bool RenameField { get; set; } = false;
-            internal bool NoValueConverter { get; set; } = false;
-
-            internal bool? IsRequired { get; set; } = null;
-            internal string DefaultSQLValueForReference { get; set; }
-            internal ValueConverter ValueConverterProperty { get; set; }
-            internal Type[] CanBeTypes { get; set; }
-        }
-
-        internal class ModelDataNames
-        {
-            internal Type EntityType { get; set; }
-            internal string TypeFullName { get; set; }
-            internal ValueConverter ValueConverter { get; set; }
-            internal string EntityTableName { get; set; }
-            internal bool RenameTable { get; set; } = false;
-            internal bool EntityHasNoBaseType { get; set; }
-            internal bool UseXminAsConcurrencyToken { get; set; }
-            internal Dictionary<string, ModelFields> TableFields { get; set; } = new Dictionary<string, ModelFields>();
-            internal Dictionary<string, string> EntityKeys { get; set; } = new Dictionary<string, string>();
-            internal Dictionary<string, ModelIndex> Indexes { get; set; } = new Dictionary<string, ModelIndex>();
-        }
-        internal static string GetStringFromList(List<string> content)
-        {
-            string result = "";
-            for (int i = 0; i < content.Count; i++)
-            {
-                string next = (i < content.Count - 1) ? "," : "";
-                result += content[i] + next;
-            }
-            return result;
-        }
         internal static bool GetKeyPropertyOfEntity(Type TModel, out Type clrType, out string propName)
         {
             clrType = null;
@@ -159,108 +149,6 @@ namespace Microsoft.EntityFrameworkCore
             var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelClr, ExpressionClrModel, null });
             return res as ValueConverter;
         }
-        internal static void ReadExistingNames(string filePath)
-        {
-            existingTableNames.Clear();
-            XmlDocument doc = new XmlDocument();
-            doc.Load(filePath);
-            XmlNode node = doc.DocumentElement.SelectSingleNode("/fluidnames/entities");
-            foreach (XmlNode cNode in node.ChildNodes)
-            {
-                var entityName = cNode.Attributes["name"].Value;
-                var entityType = cNode.Attributes["type"].Value;
-                var tablename = cNode.Attributes["tablename"].Value;
-                ModelDataNames mdn = new ModelDataNames();
-                mdn.EntityTableName = tablename;
-                mdn.TypeFullName = entityType;
-                mdn.TableFields = new Dictionary<string, ModelFields>();
-                var nodeFields = cNode.ChildNodes;
-                foreach (XmlNode nChld in nodeFields)
-                {
-                    if (nChld.Name == "fields")
-                    {
-                        foreach (XmlNode nfield in nChld.ChildNodes)
-                        {
-                            var fieldName = nfield.Attributes["propname"].Value;
-                            var assignedName = nfield.Attributes["name"].Value;
-                            var fieldType = nfield.Attributes["type"].Value;
-                            if (!String.IsNullOrWhiteSpace(assignedName))
-                            {
-                                mdn.TableFields.Add(fieldName, new ModelFields { Name = assignedName });
-                            }
-                        }
-                    }
-                    else if (nChld.Name == "indexes")
-                    {
-                        foreach (XmlNode nidx in nChld.ChildNodes)
-                        {
-                            var idxName = nidx.Attributes["name"].Value;
-                            var idxfields = nidx.Attributes["fields"].Value;
-                            if (!String.IsNullOrWhiteSpace(idxName))
-                            {
-                                mdn.Indexes.Add(idxName, new ModelIndex { Fields = idxfields });
-                            }
-                        }
-                    }
-                }
-                existingTableNames.Add(entityName, mdn);
-            }
-        }
-        internal static void SaveExistingNames(string filePath)
-        {
-            XmlDocument doc = new XmlDocument();
-            XmlNode root = doc.CreateElement("fluidnames");
-            XmlNode node = doc.CreateElement("entities");
-            foreach (var entity in contextEntities)
-            {
-                XmlNode nodeEntity = doc.CreateElement("entity");
-                var a = doc.CreateAttribute("name");
-                a.Value = entity.Key;
-                var b = doc.CreateAttribute("type");
-                b.Value = entity.Value.EntityType.FullName;
-                var c = doc.CreateAttribute("tablename");
-                c.Value = entity.Value.EntityTableName;
-                nodeEntity.Attributes.Append(a);
-                nodeEntity.Attributes.Append(b);
-                nodeEntity.Attributes.Append(c);
-
-                XmlNode fldNode = doc.CreateElement("fields");
-                foreach (var fld in entity.Value.TableFields)
-                {
-                    var fname = doc.CreateAttribute("name");
-                    fname.Value = fld.Value.Name;
-                    var ftype = doc.CreateAttribute("type");
-                    ftype.Value = fld.Value.Type.FullName;
-
-                    var fn = doc.CreateAttribute("propname");
-                    fn.Value = fld.Key;
-                    XmlNode fldNodeCurrent = doc.CreateElement("field");
-                    fldNodeCurrent.Attributes.Append(fn);
-                    fldNodeCurrent.Attributes.Append(fname);
-                    fldNodeCurrent.Attributes.Append(ftype);
-                    fldNode.AppendChild(fldNodeCurrent);
-                }
-                nodeEntity.AppendChild(fldNode);
-
-                XmlNode idxNode = doc.CreateElement("indexes");
-                foreach (var idx in entity.Value.Indexes)
-                {
-                    var i = doc.CreateAttribute("fields");
-                    i.Value = GetStringFromList(idx.Value.Properties);
-                    var id = doc.CreateAttribute("name");
-                    id.Value = idx.Value.IndexName;
-                    XmlNode idxNodeCurrent = doc.CreateElement("index");
-                    idxNodeCurrent.Attributes.Append(id);
-                    idxNodeCurrent.Attributes.Append(i);
-                    idxNode.AppendChild(idxNodeCurrent);
-                }
-                nodeEntity.AppendChild(idxNode);
-                node.AppendChild(nodeEntity);
-            }
-            root.AppendChild(node);
-            doc.AppendChild(root);
-            doc.Save(filePath);
-        }
         internal static void getEntities(DbContext context)
         {
             contextEntities.Clear();
@@ -268,9 +156,8 @@ namespace Microsoft.EntityFrameworkCore
             var currentInfoPath = Path.Combine(Directory.GetCurrentDirectory(), context.GetType().Name + ".info.xml");
             if (File.Exists(currentInfoPath))
             {
-                ReadExistingNames(currentInfoPath);
+                XMLUtils.ReadExistingNames(currentInfoPath, existingTableNames);
             }
-            //var res = new Dictionary<string,ModelDataNames>();
             var allDBProps = context.GetType().GetProperties();
             Type tDBSet = typeof(DbSet<>);
             Type tFluidNameAttr = typeof(FluidNameAttribute);
@@ -490,7 +377,7 @@ namespace Microsoft.EntityFrameworkCore
                     }
                 }
             }
-            SaveExistingNames(currentInfoPath);
+            XMLUtils.SaveExistingNames(currentInfoPath, contextEntities);
         }
 
         /// <summary>
