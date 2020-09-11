@@ -175,7 +175,7 @@ namespace Microsoft.EntityFrameworkCore
                         Expression e = Expression.Equal(pExprKey, pFind);
                         eFind.Add(e);
                     }
-                    Expression b = ReflectionUtils.MakeAndExpression(eFind);// (IEnumerable<Expression> expressions)//Expression.Block((eFind);
+                    Expression b = ReflectionUtils.MakeAndExpression(eFind);
                     Expression eF = Expression.Lambda(b,pExpr);
                     var queryStart = ReflectionUtils.DBSetMethod(eT).Invoke(context,null);
                     var queryNoTrack = ReflectionUtils.AsNoTrackingMethod(eT).Invoke(null, new object[] {queryStart});
@@ -184,15 +184,12 @@ namespace Microsoft.EntityFrameworkCore
                 }
                 else
                 {
-
+                    throw(new InvalidDataException("Unknown serialization"));
                 }
-                return null;
             };
             Func<string, VariableType> deserializeVType = (a) => new VariableType(deserializeVarType(a));
             Expression<Func<VariableType, string>> ExpressionModelCLR = (a) => serializeVarType(a);
             Expression<Func<string, VariableType>> ExpressionCLRModel = (a) => deserializeVType(a);
-            var qq = serializeVarType.ToString();
-
             var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelCLR, ExpressionCLRModel, null });
             return res as ValueConverter;
         }

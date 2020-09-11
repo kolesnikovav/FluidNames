@@ -8,11 +8,10 @@
 # About
 FluidNames is the Entity Framework Core plugin for create some enhancements in your EF Core database context.
 ## Key features:
-    Create short names for entity tables, fields, indexes.
-    Create ``` ValueConverter ``` expressions for references.
-    Adds the ability to store several data types in one field.
-    Adds some attributes for use instead of using Fluent API.
-
+- Create short names for entity tables, fields, indexes.
+- Create ``` ValueConverter ``` expressions for references.
+- Adds the ability to store several data types in one field.
+- Adds some attributes for use instead of using Fluent API.
 
 ```csharp
     public class AnimalOwner
