@@ -1,58 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Reflection;
-using System.IO;
-using System.Xml;
-using System.Text.Json;
 
 namespace Microsoft.EntityFrameworkCore
 {
     internal static class ReflectionUtils
     {
-        internal static MethodInfo JSONSerializeMethod ()
-        => typeof(JsonSerializer).GetMethods(BindingFlags.Static| BindingFlags.Public)
-            .Where( m => m.IsGenericMethod && m.Name == "Serialize" && m.ReturnType == typeof(string)).FirstOrDefault()
-            .MakeGenericMethod(new Type[] { typeof(VariableType) });
-        internal static MethodInfo JSONDeserializeMethod ()
-        => typeof(JsonSerializer).GetMethods(BindingFlags.Static| BindingFlags.Public)
-            .Where( m => m.IsGenericMethod && m.Name == "Deserialize").FirstOrDefault()
-            .MakeGenericMethod(new Type[] { typeof(VariableType) });
-        internal static MethodInfo ContainsKeyMethod ()
-        => typeof(Dictionary<Type, string>).GetMethods()
-            .Where( m => !m.IsGenericMethod && m.Name == "ContainsKey").FirstOrDefault();
-
-        internal static MethodInfo TryGetValueMethod ()
-        => typeof(Dictionary<Type, string>).GetMethods()
-            .Where( m => !m.IsGenericMethod && m.Name == "TryGetValue").FirstOrDefault();
-
-
-        internal static MethodInfo GetTypeMethod ()
-        => typeof(object).GetMethods()
-            .Where( m => m.Name == "GetType").FirstOrDefault();
-
-        internal static Expression callExpressionGetType (ParameterExpression parameterModel)
-        =>  Expression.Call( parameterModel, GetTypeMethod());
-
-        internal static Expression IsEntityExpression(ParameterExpression parameterModel, ConstantExpression entityCollection)
-        {
-            Expression callExprGetType = Expression.Call(
-                                    parameterModel,
-                                    GetTypeMethod()
-                                );
-            Expression callContainsKey = Expression.Call(
-                entityCollection,
-                ContainsKeyMethod (),
-                new Expression[] {
-                    callExpressionGetType (parameterModel)
-                }
-            );
-            return Expression.Lambda(callContainsKey, parameterModel );
-        }
         internal static Expression GetModelCLRExpression(Type TModel)
         {
             Type ClrType = null;
@@ -66,19 +22,6 @@ namespace Microsoft.EntityFrameworkCore
             MemberExpression propertyModel = Expression.Property(p, keyName);
             return Expression.Lambda(tFuncModelCLR, propertyModel, p);
         }
-        internal static Expression GetKeyFieldExpression(ParameterExpression parameterModel, ConstantExpression entityCollection)
-        {
-            MethodInfo m = typeof(ReflectionUtils).GetMethod("GetEntityCollectionName");
-            Expression callEntityCollectionName = Expression.Call(
-                m,
-                new Expression[] {
-                    entityCollection,
-                    callExpressionGetType (parameterModel)
-                }
-            );
-            return callEntityCollectionName;
-        }
-
         internal static MethodInfo FindMethod (ValueConverterMethod mFind, Type modelType)
         {
             if (mFind == ValueConverterMethod.FirstOrDefault)
@@ -94,10 +37,33 @@ namespace Microsoft.EntityFrameworkCore
                 .MakeGenericMethod(modelType);
             }
         }
-        internal static ConstructorInfo VarTypeFromObjectCtor ()
-        => typeof(VariableType).GetConstructors().Where(v => v.GetParameters().Count() == 1 && v.GetParameters().First().ParameterType == typeof(object) ).First();
-
+        internal static MethodInfo DBSetMethod (Type modelType)
+        => typeof(DbContext).GetMethods()
+                .Where(v => v.Name == "Set" && v.IsGenericMethod).First()
+                .MakeGenericMethod(modelType);
+        internal static MethodInfo AsNoTrackingMethod(Type modelType)
+        => typeof(EntityFrameworkQueryableExtensions)
+            .GetTypeInfo().GetDeclaredMethod("AsNoTracking").MakeGenericMethod(new Type[] { modelType });
         internal static Type GetGenericValueConverter (Type TFrom, Type TTo)
         => typeof(ValueConverter<,>).MakeGenericType(new Type[] { TFrom, TTo });
+
+        internal static Expression MakeAndExpression (IEnumerable<Expression> expressions)
+        {
+            if (expressions.Count() == 1) return expressions.First();
+            Expression e = null;
+            for (int i = 0; i < expressions.Count()/2; i++)
+            {
+                if (e != null)
+                {
+                    e = Expression.And(e, Expression.Add(expressions.ElementAt(i), expressions.ElementAt(i+1)));
+                }
+                else
+                {
+                    e = Expression.Add(expressions.ElementAt(i), expressions.ElementAt(i+1));
+                }
+            }
+            if (e.CanReduce) e = e.Reduce();
+            return e;
+        }
     }
 }

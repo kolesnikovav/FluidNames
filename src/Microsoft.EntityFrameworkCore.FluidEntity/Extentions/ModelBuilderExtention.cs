@@ -54,6 +54,7 @@ namespace Microsoft.EntityFrameworkCore
         private static readonly Dictionary<string, ModelDataNames> existingTableNames = new Dictionary<string, ModelDataNames>();
         private static readonly Dictionary<string, ModelDataNames> contextEntities = new Dictionary<string, ModelDataNames>();
         private static readonly Dictionary<Type,string> entityTypes = new Dictionary<Type, string>();
+        private static readonly Dictionary<string, Type> entityTypeNames = new Dictionary<string, Type>();
         private static JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions();
         private static bool contextEntitiesExists = false;
         internal static bool GetKeyPropertyOfEntity(Type TModel, out Type clrType, out string propName)
@@ -110,61 +111,89 @@ namespace Microsoft.EntityFrameworkCore
             var res = Activator.CreateInstance(gVConverter, new object[] { ReflectionUtils.GetModelCLRExpression(TModel), ExpressionCLRModel, null });
             return res as ValueConverter;
         }
-        internal static ValueConverter GetConverterJSON (DbContext context, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault)
+        internal static ValueConverter GetConverterJSON (DbContext context, Type[] canBeTypes, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault)
         {
-            ConstantExpression entities = Expression.Constant(entityTypes);
-            ConstantExpression jOpt = Expression.Constant(_jsonSerializerOptions);
+            Type gVConverter = ReflectionUtils.GetGenericValueConverter( typeof(VariableType), typeof(string));
+            Func<VariableType, bool> isEntity = (a) => entityTypes.ContainsKey(a.InstanceType);
+            Func<VariableType, string> serializeVarType = (a) => {
+                if (!isEntity(a))
+                {
+                    return JsonSerializer.Serialize<VariableType>(a, _jsonSerializerOptions);
+                }
+                else
+                {
+                    var d = new Dictionary<string,object>();
+                    d.Add("EntityType", a.InstanceType.FullName);
+                    foreach (var key in context.Model.GetEntityTypes(a.InstanceType).FirstOrDefault().GetKeys())
+                    {
+                        foreach (var keyProp in key.Properties)
+                        {
+                            var pI = a.InstanceType.GetProperty(keyProp.Name);
+                            d.Add(keyProp.Name, pI.GetValue(a.Value));
+                        }
+                    }
+                    return JsonSerializer.Serialize<Dictionary<string,object>>(d, _jsonSerializerOptions);
+                }
+            };
+            Func<string, object> deserializeVarType = (a) => {
+                var resDeserialize = JsonSerializer.Deserialize<VariableType>(a, _jsonSerializerOptions);
+                if (resDeserialize.Value != null) return resDeserialize.Value;
+                var resD = JsonSerializer.Deserialize<Dictionary<string,object>>(a, _jsonSerializerOptions);
+                if (resD != null && resD.ContainsKey("EntityType"))
+                {
+                    JsonElement jType = (JsonElement)resD["EntityType"];
+                    Type eT = entityTypeNames[jType.ToString()];
+                    string dbSetName = entityTypes[eT];
+                    List<Expression> eFind = new List<Expression>();
+                    ParameterExpression pExpr = Expression.Parameter(eT, "fnd");
 
-            Type TClr = typeof(string);
-            Type TModel = typeof(VariableType);
-            Type gVConverter = ReflectionUtils.GetGenericValueConverter( TModel, TClr);
-            Type tFunc = typeof(Func<,>);
-            Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] { TModel, TClr });
-            Type tFuncCLRModel = tFunc.MakeGenericType(new Type[] { TClr, TModel });
-            Type tFuncModelFind = tFunc.MakeGenericType(new Type[] { TModel, typeof(bool) });
-            Type tIQueryable = typeof(IQueryable<>);
-            Type tIQueryableModel = tIQueryable.MakeGenericType(TModel);
-            //**** model - clr conversion ************
-            var miGeneric =  ReflectionUtils.JSONSerializeMethod();
-            ParameterExpression parameterModel = Expression.Parameter(TModel, "a");
-            ConstructorInfo ci = ReflectionUtils.VarTypeFromObjectCtor();
-            NewExpression newExpression = Expression.New( ci, new Expression[] {parameterModel});
+                    foreach(var k in resD.Where(k => k.Key != "EntityType"))
+                    {
+                        Expression pExprKey = Expression.Property(pExpr, k.Key);
+                        Type keyType = eT.GetProperty(k.Key).PropertyType;
+                        JsonElement jvalue = (JsonElement)k.Value;
+                        Expression pFind = null;
+                        if (jvalue.ValueKind == JsonValueKind.Number)
+                        {
+                            pFind = Expression.Convert(Expression.Constant(jvalue.GetInt32()), keyType);
+                        }
+                        else if (jvalue.ValueKind == JsonValueKind.String)
+                        {
+                            if (keyType == typeof(Guid))
+                            {
+                                pFind = Expression.Constant(jvalue.GetGuid());
+                            }
+                            else
+                            {
+                                pFind = Expression.Constant(jvalue.GetString());
+                            }
+                        }
+                        else if (keyType == typeof(bool))
+                        {
+                            pFind = Expression.Constant(jvalue.GetBoolean());
+                        }
+                        Expression e = Expression.Equal(pExprKey, pFind);
+                        eFind.Add(e);
+                    }
+                    Expression b = ReflectionUtils.MakeAndExpression(eFind);// (IEnumerable<Expression> expressions)//Expression.Block((eFind);
+                    Expression eF = Expression.Lambda(b,pExpr);
+                    var queryStart = ReflectionUtils.DBSetMethod(eT).Invoke(context,null);
+                    var queryNoTrack = ReflectionUtils.AsNoTrackingMethod(eT).Invoke(null, new object[] {queryStart});
+                    var result = ReflectionUtils.FindMethod(modelClrMethod, eT).Invoke(null, new object[] {queryNoTrack, eF});
+                    return result;
+                }
+                else
+                {
 
-            Expression callExpr = Expression.Call(
-                                    miGeneric,
-                                    new Expression[] {
-                                        newExpression,
-                                        jOpt
-                                    }
-                                );
-            var ExpressionModelClr = Expression.Lambda(callExpr, parameterModel);
-            //******
-            // lambda for entity type serialize (Only key property is needed)
-            var qq = ReflectionUtils.GetKeyFieldExpression( parameterModel, entities);
+                }
+                return null;
+            };
+            Func<string, VariableType> deserializeVType = (a) => new VariableType(deserializeVarType(a));
+            Expression<Func<VariableType, string>> ExpressionModelCLR = (a) => serializeVarType(a);
+            Expression<Func<string, VariableType>> ExpressionCLRModel = (a) => deserializeVType(a);
+            var qq = serializeVarType.ToString();
 
-
-
-
-
-
-            //*****
-            var ExpressionModelClrCommon = Expression.IfThenElse(
-                ReflectionUtils.IsEntityExpression( parameterModel, entities),
-                ExpressionModelClr,
-                ExpressionModelClr
-            );
-            //**** clr - model ************
-            var mDeserializeGeneric = ReflectionUtils.JSONDeserializeMethod();
-            ParameterExpression parameterClr = Expression.Parameter(TClr, "v");
-            Expression callExprDeserialize = Expression.Call(
-                                    mDeserializeGeneric,
-                                    new Expression[] {
-                                        parameterClr,
-                                        jOpt
-                                    }
-                                );
-            var ExpressionClrModel = Expression.Lambda(callExprDeserialize, parameterClr);
-            var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelClrCommon, ExpressionClrModel, null });
+            var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelCLR, ExpressionCLRModel, null });
             return res as ValueConverter;
         }
         internal static void getEntities(DbContext context)
@@ -388,6 +417,7 @@ namespace Microsoft.EntityFrameworkCore
                     }
                     contextEntities.Add(prop.Name, entityDescribtor);
                     entityTypes.Add(entityType, prop.Name);
+                    entityTypeNames.Add(entityType.FullName, entityType);
                     if (!existingTableNames.ContainsKey(prop.Name))
                     {
                         existingTableNames.Add(prop.Name, entityDescribtor);
@@ -481,7 +511,7 @@ namespace Microsoft.EntityFrameworkCore
                     // can be types
                     if (pName.Value.CanBeTypes != null && pName.Value.CanBeTypes.Count() > 0)
                     {
-                        (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(GetConverterJSON(context));
+                        (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(GetConverterJSON(context, pName.Value.CanBeTypes));
                     }
                 }
                 // Indexes

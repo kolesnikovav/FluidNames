@@ -31,7 +31,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <summary>
         /// Default constructor
         /// </summary>
-        public VariableType (object val)
+        public VariableType(object val)
         {
             InstanceType = val.GetType();
             Value = val;
