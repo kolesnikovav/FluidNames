@@ -113,23 +113,23 @@ namespace Microsoft.EntityFrameworkCore
         }
         internal static ValueConverter GetConverterJSON (DbContext context, Type[] canBeTypes, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault)
         {
-            Type gVConverter = ReflectionUtils.GetGenericValueConverter( typeof(VariableType), typeof(string));
-            Func<VariableType, bool> isEntity = (a) => entityTypes.ContainsKey(a.InstanceType);
-            Func<VariableType, string> serializeVarType = (a) => {
+            Type gVConverter = ReflectionUtils.GetGenericValueConverter( typeof(object), typeof(string));
+            Func<object, bool> isEntity = (a) => entityTypes.ContainsKey(a.GetType());
+            Func<object, string> serializeVarType = (a) => {
                 if (!isEntity(a))
                 {
-                    return JsonSerializer.Serialize<VariableType>(a, _jsonSerializerOptions);
+                    return JsonSerializer.Serialize<VariableType>(new VariableType(a), _jsonSerializerOptions);
                 }
                 else
                 {
                     var d = new Dictionary<string,object>();
-                    d.Add("EntityType", a.InstanceType.FullName);
-                    foreach (var key in context.Model.GetEntityTypes(a.InstanceType).FirstOrDefault().GetKeys())
+                    d.Add("EntityType", a.GetType().FullName);
+                    foreach (var key in context.Model.GetEntityTypes(a.GetType()).FirstOrDefault().GetKeys())
                     {
                         foreach (var keyProp in key.Properties)
                         {
-                            var pI = a.InstanceType.GetProperty(keyProp.Name);
-                            d.Add(keyProp.Name, pI.GetValue(a.Value));
+                            var pI = a.GetType().GetProperty(keyProp.Name);
+                            d.Add(keyProp.Name, pI.GetValue(a));
                         }
                     }
                     return JsonSerializer.Serialize<Dictionary<string,object>>(d, _jsonSerializerOptions);
@@ -187,9 +187,8 @@ namespace Microsoft.EntityFrameworkCore
                     throw(new InvalidDataException("Unknown serialization"));
                 }
             };
-            Func<string, VariableType> deserializeVType = (a) => new VariableType(deserializeVarType(a));
-            Expression<Func<VariableType, string>> ExpressionModelCLR = (a) => serializeVarType(a);
-            Expression<Func<string, VariableType>> ExpressionCLRModel = (a) => deserializeVType(a);
+            Expression<Func<object, string>> ExpressionModelCLR = (a) => serializeVarType(a);
+            Expression<Func<string, object>> ExpressionCLRModel = (a) => deserializeVarType(a);
             var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelCLR, ExpressionCLRModel, null });
             return res as ValueConverter;
         }

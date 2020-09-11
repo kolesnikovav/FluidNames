@@ -49,11 +49,11 @@ namespace test
                 db.Boys.Add(Paul);
                 db.SaveChanges();
                 var c = db.Model.FindEntityType(typeof(CatVariable)).GetProperties().Where(v => v.Name == "CatOwner").First().GetValueConverter();
-                var a = c.ConvertToProvider(new VariableType(Frank));
-                var b = c.ConvertToProvider(new VariableType(Paul));
+                var a = c.ConvertToProvider(Frank);
+                var b = c.ConvertToProvider(Paul);
 
-                var x = (c.ConvertFromProvider(a) as VariableType).Value;
-                var y = (c.ConvertFromProvider(a) as VariableType).Value;
+                var x = c.ConvertFromProvider(a);
+                var y = c.ConvertFromProvider(a);
 
                 Assert.Equal(Frank.Name, (x as Boy).Name);
             }
@@ -75,28 +75,28 @@ namespace test
                 db.Cats.Add(new CatVariable
                 {
                     Nick = "Baby",
-                    Age = new VariableType("less 2 years"),
-                    CatOwner = new VariableType(Frank)
+                    Age = "less 2 years",
+                    CatOwner = Frank
                 });
                 db.Cats.Add(new CatVariable
                 {
                     Nick = "Caty",
-                    Age = new VariableType( false),
-                    CatOwner = new VariableType(Mary)
+                    Age = false,
+                    CatOwner = Mary
                 });
                 db.Cats.Add(new CatVariable
                 {
                     Nick = "Kitty",
-                    Age = new VariableType( new AgeVariant() { Describtion = "1/2 years"}),
-                    CatOwner = new VariableType("unknown")
+                    Age = new AgeVariant() { Describtion = "1/2 years"},
+                    CatOwner = "unknown"
                 });
                 db.SaveChanges();
                 var q = db.Cats.Where(v => v.Nick == "Kitty").FirstOrDefault();
-                Assert.Equal("unknown", q.CatOwner.Value);
+                Assert.Equal("unknown", q.CatOwner);
                 var q1 = db.Cats.Where(v => v.Nick == "Caty").FirstOrDefault();
-                Assert.Equal(Mary, q1.CatOwner.Value);
+                Assert.Equal(Mary, q1.CatOwner);
                 var q2 = db.Cats.Where(v => v.Nick == "Baby").FirstOrDefault();
-                Assert.Equal(Frank, q2.CatOwner.Value);
+                Assert.Equal(Frank, q2.CatOwner);
             }
         }
         [Fact]

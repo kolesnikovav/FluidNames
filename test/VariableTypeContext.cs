@@ -30,10 +30,10 @@ namespace test
         public string Nick {get;set;}
 
         [CanBe(new Type[] {typeof(bool), typeof(string), typeof (AgeVariant)})]
-        public VariableType Age {get;set;}
+        public object Age {get;set;}
 
         [CanBe(new Type[] {typeof(Boy), typeof(Girl), typeof (string)})]
-        public VariableType CatOwner {get;set;}
+        public object CatOwner {get;set;}
     }
     public class AgeVariant
     {
