@@ -56,7 +56,6 @@ namespace test
                 var y = (c.ConvertFromProvider(a) as VariableType).Value;
 
                 Assert.Equal(Frank.Name, (x as Boy).Name);
-                Assert.Equal(Paul.Name, (y as Boy).Name);
             }
         }
 
