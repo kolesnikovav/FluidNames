@@ -8,10 +8,44 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Reflection;
 using System.IO;
 using System.Xml;
+using System.Text.Json;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace Microsoft.EntityFrameworkCore
 {
+    internal class ModelIndex
+    {
+        internal string IndexName { get; set; }
+        internal bool IsUnique { get; set; } = false;
+        internal List<string> Properties { get; set; } = new List<string>();
+        internal string Fields;
+    }
+    internal class ModelFields
+    {
+        internal string Name { get; set; }
+        internal Type Type { get; set; }
+        internal bool RenameField { get; set; } = false;
+        internal bool NoValueConverter { get; set; } = false;
+
+        internal bool? IsRequired { get; set; } = null;
+        internal string DefaultSQLValueForReference { get; set; }
+        internal ValueConverter ValueConverterProperty { get; set; }
+        internal Type[] CanBeTypes { get; set; }
+    }
+
+    internal class ModelDataNames
+    {
+        internal Type EntityType { get; set; }
+        internal string TypeFullName { get; set; }
+        internal ValueConverter ValueConverter { get; set; }
+        internal string EntityTableName { get; set; }
+        internal bool RenameTable { get; set; } = false;
+        internal bool EntityHasNoBaseType { get; set; }
+        internal bool UseXminAsConcurrencyToken { get; set; }
+        internal Dictionary<string, ModelFields> TableFields { get; set; } = new Dictionary<string, ModelFields>();
+        internal Dictionary<string, string> EntityKeys { get; set; } = new Dictionary<string, string>();
+        internal Dictionary<string, ModelIndex> Indexes { get; set; } = new Dictionary<string, ModelIndex>();
+    }
     /// <summary>
     /// Represents a plugin for Microsoft.EntityFrameworkCore to support automatically set fluid names.
     /// </summary>
@@ -19,50 +53,10 @@ namespace Microsoft.EntityFrameworkCore
     {
         private static readonly Dictionary<string, ModelDataNames> existingTableNames = new Dictionary<string, ModelDataNames>();
         private static readonly Dictionary<string, ModelDataNames> contextEntities = new Dictionary<string, ModelDataNames>();
-
+        private static readonly Dictionary<Type,string> entityTypes = new Dictionary<Type, string>();
+        private static readonly Dictionary<string, Type> entityTypeNames = new Dictionary<string, Type>();
+        private static JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions();
         private static bool contextEntitiesExists = false;
-        internal class ModelIndex
-        {
-            internal string IndexName { get; set; }
-            internal bool IsUnique { get; set; } = false;
-            internal List<string> Properties { get; set; } = new List<string>();
-            internal string Fields;
-        }
-        internal class ModelFields
-        {
-            internal string Name { get; set; }
-            internal Type Type { get; set; }
-            internal bool RenameField { get; set; } = false;
-            internal bool NoValueConverter { get; set; } = false;
-
-            internal bool? IsRequired { get; set; } = null;
-            internal string DefaultSQLValueForReference { get; set; }
-            internal ValueConverter ValueConverterProperty { get; set; }
-        }
-
-        internal class ModelDataNames
-        {
-            internal Type EntityType { get; set; }
-            internal string TypeFullName { get; set; }
-            internal ValueConverter ValueConverter { get; set; }
-            internal string EntityTableName { get; set; }
-            internal bool RenameTable { get; set; } = false;
-            internal bool EntityHasNoBaseType { get; set; }
-            internal bool UseXminAsConcurrencyToken { get; set; }
-            internal Dictionary<string, ModelFields> TableFields { get; set; } = new Dictionary<string, ModelFields>();
-            internal Dictionary<string, string> EntityKeys { get; set; } = new Dictionary<string, string>();
-            internal Dictionary<string, ModelIndex> Indexes { get; set; } = new Dictionary<string, ModelIndex>();
-        }
-        internal static string GetStringFromList(List<string> content)
-        {
-            string result = "";
-            for (int i = 0; i < content.Count; i++)
-            {
-                string next = (i < content.Count - 1) ? "," : "";
-                result += content[i] + next;
-            }
-            return result;
-        }
         internal static bool GetKeyPropertyOfEntity(Type TModel, out Type clrType, out string propName)
         {
             clrType = null;
@@ -86,18 +80,17 @@ namespace Microsoft.EntityFrameworkCore
             string KeyName = null;
             if (!GetKeyPropertyOfEntity(TModel, out TClr, out KeyName)) return null;
             if (TClr == TModel) return null;
-            Type tVConverter = typeof(ValueConverter<,>);
-            Type gVConverter = tVConverter.MakeGenericType(new Type[] { TModel, TClr });
+            Type gVConverter = ReflectionUtils.GetGenericValueConverter( TModel, TClr);
             Type tFunc = typeof(Func<,>);
-            Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] { TModel, TClr });
+            //Type tFuncModelCLR = tFunc.MakeGenericType(new Type[] { TModel, TClr });
             Type tFuncCLRModel = tFunc.MakeGenericType(new Type[] { TClr, TModel });
             Type tFuncModelFind = tFunc.MakeGenericType(new Type[] { TModel, typeof(bool) });
             Type tIQueryable = typeof(IQueryable<>);
             Type tIQueryableModel = tIQueryable.MakeGenericType(TModel);
             //**** model - clr conversion ************
-            ParameterExpression parameterModel = Expression.Parameter(TModel, "v");
-            MemberExpression propertyModel = Expression.Property(parameterModel, KeyName);
-            var ExpressionModelCLR = Expression.Lambda(tFuncModelCLR, propertyModel, parameterModel);
+            // ParameterExpression parameterModel = Expression.Parameter(TModel, "v");
+            // MemberExpression propertyModel = Expression.Property(parameterModel, KeyName);
+            //var ExpressionModelCLR = ReflectionUtils.GetModelCLRExpression(TModel);
             //**** clr - model conversion ************
             LambdaExpression ExpressionCLRModel = null;
             ParameterExpression parameterModelFind = Expression.Parameter(TModel, "a");
@@ -105,146 +98,109 @@ namespace Microsoft.EntityFrameworkCore
             MemberExpression propertyModelFind = Expression.Property(parameterModelFind, KeyName);
             Expression FindPredicate = Expression.Equal(propertyModelFind, parameterClrFind);
             var eFirstOrDefault = Expression.Lambda(tFuncModelFind, FindPredicate, new ParameterExpression[] { parameterModelFind });
-            MethodInfo mFirstOrDefault = null;
-            MethodInfo mGFirstOrDefault = null;
-
-            if (modelClrMethod == ValueConverterMethod.FirstOrDefault)
-            {
-                mFirstOrDefault = typeof(Queryable).GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .Where(v => v.Name == "FirstOrDefault" && v.GetParameters().Count() == 2).First();
-                mGFirstOrDefault = mFirstOrDefault.MakeGenericMethod(TModel);
-            }
-            else if (modelClrMethod == ValueConverterMethod.First)
-            {
-                mFirstOrDefault = typeof(Queryable).GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .Where(v => v.Name == "First" && v.GetParameters().Count() == 2).First();
-                mGFirstOrDefault = mFirstOrDefault.MakeGenericMethod(TModel);
-            }
 
             MemberExpression propertyDBSet = Expression.Property(Expression.Constant(context), nameDBSet);
             Expression callExpr = Expression.Call(
-                                    mGFirstOrDefault,
+                                    ReflectionUtils.FindMethod(modelClrMethod, TModel),
                                     new Expression[] {
                                         propertyDBSet,
                                         eFirstOrDefault
                                     }
                                 );
             ExpressionCLRModel = Expression.Lambda(callExpr, parameterClrFind);
-            var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelCLR, ExpressionCLRModel, null });
+            var res = Activator.CreateInstance(gVConverter, new object[] { ReflectionUtils.GetModelCLRExpression(TModel), ExpressionCLRModel, null });
             return res as ValueConverter;
         }
-        internal static void ReadExistingNames(string filePath)
+        internal static ValueConverter GetConverterJSON (DbContext context, Type[] canBeTypes, ValueConverterMethod modelClrMethod = ValueConverterMethod.FirstOrDefault)
         {
-            existingTableNames.Clear();
-            XmlDocument doc = new XmlDocument();
-            doc.Load(filePath);
-            XmlNode node = doc.DocumentElement.SelectSingleNode("/fluidnames/entities");
-            foreach (XmlNode cNode in node.ChildNodes)
-            {
-                var entityName = cNode.Attributes["name"].Value;
-                var entityType = cNode.Attributes["type"].Value;
-                var tablename = cNode.Attributes["tablename"].Value;
-                ModelDataNames mdn = new ModelDataNames();
-                mdn.EntityTableName = tablename;
-                mdn.TypeFullName = entityType;
-                mdn.TableFields = new Dictionary<string, ModelFields>();
-                var nodeFields = cNode.ChildNodes;
-                foreach (XmlNode nChld in nodeFields)
+            Type gVConverter = ReflectionUtils.GetGenericValueConverter( typeof(object), typeof(string));
+            Func<object, bool> isEntity = (a) => entityTypes.ContainsKey(a.GetType());
+            Func<object, string> serializeVarType = (a) => {
+                if (!isEntity(a))
                 {
-                    if (nChld.Name == "fields")
+                    return JsonSerializer.Serialize<VariableType>(new VariableType(a), _jsonSerializerOptions);
+                }
+                else
+                {
+                    var d = new Dictionary<string,object>();
+                    d.Add("EntityType", a.GetType().FullName);
+                    foreach (var key in context.Model.GetEntityTypes(a.GetType()).FirstOrDefault().GetKeys())
                     {
-                        foreach (XmlNode nfield in nChld.ChildNodes)
+                        foreach (var keyProp in key.Properties)
                         {
-                            var fieldName = nfield.Attributes["propname"].Value;
-                            var assignedName = nfield.Attributes["name"].Value;
-                            var fieldType = nfield.Attributes["type"].Value;
-                            if (!String.IsNullOrWhiteSpace(assignedName))
-                            {
-                                mdn.TableFields.Add(fieldName, new ModelFields { Name = assignedName });
-                            }
+                            var pI = a.GetType().GetProperty(keyProp.Name);
+                            d.Add(keyProp.Name, pI.GetValue(a));
                         }
                     }
-                    else if (nChld.Name == "indexes")
+                    return JsonSerializer.Serialize<Dictionary<string,object>>(d, _jsonSerializerOptions);
+                }
+            };
+            Func<string, object> deserializeVarType = (a) => {
+                var resDeserialize = JsonSerializer.Deserialize<VariableType>(a, _jsonSerializerOptions);
+                if (resDeserialize.Value != null) return resDeserialize.Value;
+                var resD = JsonSerializer.Deserialize<Dictionary<string,object>>(a, _jsonSerializerOptions);
+                if (resD != null && resD.ContainsKey("EntityType"))
+                {
+                    JsonElement jType = (JsonElement)resD["EntityType"];
+                    Type eT = entityTypeNames[jType.ToString()];
+                    string dbSetName = entityTypes[eT];
+                    List<Expression> eFind = new List<Expression>();
+                    ParameterExpression pExpr = Expression.Parameter(eT, "fnd");
+
+                    foreach(var k in resD.Where(k => k.Key != "EntityType"))
                     {
-                        foreach (XmlNode nidx in nChld.ChildNodes)
+                        Expression pExprKey = Expression.Property(pExpr, k.Key);
+                        Type keyType = eT.GetProperty(k.Key).PropertyType;
+                        JsonElement jvalue = (JsonElement)k.Value;
+                        Expression pFind = null;
+                        if (jvalue.ValueKind == JsonValueKind.Number)
                         {
-                            var idxName = nidx.Attributes["name"].Value;
-                            var idxfields = nidx.Attributes["fields"].Value;
-                            if (!String.IsNullOrWhiteSpace(idxName))
+                            pFind = Expression.Convert(Expression.Constant(jvalue.GetInt32()), keyType);
+                        }
+                        else if (jvalue.ValueKind == JsonValueKind.String)
+                        {
+                            if (keyType == typeof(Guid))
                             {
-                                mdn.Indexes.Add(idxName, new ModelIndex { Fields = idxfields });
+                                pFind = Expression.Constant(jvalue.GetGuid());
+                            }
+                            else
+                            {
+                                pFind = Expression.Constant(jvalue.GetString());
                             }
                         }
+                        else if (keyType == typeof(bool))
+                        {
+                            pFind = Expression.Constant(jvalue.GetBoolean());
+                        }
+                        Expression e = Expression.Equal(pExprKey, pFind);
+                        eFind.Add(e);
                     }
+                    Expression b = ReflectionUtils.MakeAndExpression(eFind);
+                    Expression eF = Expression.Lambda(b,pExpr);
+                    var queryStart = ReflectionUtils.DBSetMethod(eT).Invoke(context,null);
+                    var queryNoTrack = ReflectionUtils.AsNoTrackingMethod(eT).Invoke(null, new object[] {queryStart});
+                    var result = ReflectionUtils.FindMethod(modelClrMethod, eT).Invoke(null, new object[] {queryNoTrack, eF});
+                    return result;
                 }
-                existingTableNames.Add(entityName, mdn);
-            }
-        }
-        internal static void SaveExistingNames(string filePath)
-        {
-            XmlDocument doc = new XmlDocument();
-            XmlNode root = doc.CreateElement("fluidnames");
-            XmlNode node = doc.CreateElement("entities");
-            foreach (var entity in contextEntities)
-            {
-                XmlNode nodeEntity = doc.CreateElement("entity");
-                var a = doc.CreateAttribute("name");
-                a.Value = entity.Key;
-                var b = doc.CreateAttribute("type");
-                b.Value = entity.Value.EntityType.FullName;
-                var c = doc.CreateAttribute("tablename");
-                c.Value = entity.Value.EntityTableName;
-                nodeEntity.Attributes.Append(a);
-                nodeEntity.Attributes.Append(b);
-                nodeEntity.Attributes.Append(c);
-
-                XmlNode fldNode = doc.CreateElement("fields");
-                foreach (var fld in entity.Value.TableFields)
+                else
                 {
-                    var fname = doc.CreateAttribute("name");
-                    fname.Value = fld.Value.Name;
-                    var ftype = doc.CreateAttribute("type");
-                    ftype.Value = fld.Value.Type.FullName;
-
-                    var fn = doc.CreateAttribute("propname");
-                    fn.Value = fld.Key;
-                    XmlNode fldNodeCurrent = doc.CreateElement("field");
-                    fldNodeCurrent.Attributes.Append(fn);
-                    fldNodeCurrent.Attributes.Append(fname);
-                    fldNodeCurrent.Attributes.Append(ftype);
-                    fldNode.AppendChild(fldNodeCurrent);
+                    throw(new InvalidDataException("Unknown serialization"));
                 }
-                nodeEntity.AppendChild(fldNode);
-
-                XmlNode idxNode = doc.CreateElement("indexes");
-                foreach (var idx in entity.Value.Indexes)
-                {
-                    var i = doc.CreateAttribute("fields");
-                    i.Value = GetStringFromList(idx.Value.Properties);
-                    var id = doc.CreateAttribute("name");
-                    id.Value = idx.Value.IndexName;
-                    XmlNode idxNodeCurrent = doc.CreateElement("index");
-                    idxNodeCurrent.Attributes.Append(id);
-                    idxNodeCurrent.Attributes.Append(i);
-                    idxNode.AppendChild(idxNodeCurrent);
-                }
-                nodeEntity.AppendChild(idxNode);
-                node.AppendChild(nodeEntity);
-            }
-            root.AppendChild(node);
-            doc.AppendChild(root);
-            doc.Save(filePath);
+            };
+            Expression<Func<object, string>> ExpressionModelCLR = (a) => serializeVarType(a);
+            Expression<Func<string, object>> ExpressionCLRModel = (a) => deserializeVarType(a);
+            var res = Activator.CreateInstance(gVConverter, new object[] { ExpressionModelCLR, ExpressionCLRModel, null });
+            return res as ValueConverter;
         }
         internal static void getEntities(DbContext context)
         {
             contextEntities.Clear();
-            // this code is to avoid unnessesary renaming existing entities/fields 
+            // this code is to avoid unnessesary renaming existing entities/fields
             var currentInfoPath = Path.Combine(Directory.GetCurrentDirectory(), context.GetType().Name + ".info.xml");
             if (File.Exists(currentInfoPath))
             {
-                ReadExistingNames(currentInfoPath);
+                XMLUtils.ReadExistingNames(currentInfoPath, existingTableNames);
             }
-            //var res = new Dictionary<string,ModelDataNames>();
             var allDBProps = context.GetType().GetProperties();
             Type tDBSet = typeof(DbSet<>);
             Type tFluidNameAttr = typeof(FluidNameAttribute);
@@ -259,6 +215,7 @@ namespace Microsoft.EntityFrameworkCore
             Type tDefaultSQLValueForReferenceAttr = typeof(DefaultSQLValueForReferenceAttribute);
             Type tDefaultSQLValueAttr = typeof(DefaultSQLValueAttribute);
             Type tUseXminAsConcurrencyTokenAttr = typeof(UseXminAsConcurrencyTokenAttribute);
+            Type tCanBeAttr = typeof(CanBeAttribute);
             // enumerate all DBSet<> (entity)
             int k = 1;
             int idxNumber = 1;
@@ -415,6 +372,11 @@ namespace Microsoft.EntityFrameworkCore
                                 fldDescribtion.ValueConverterProperty = vConverter;
                             }
                         }
+                        CanBeAttribute canBeTypes = (CanBeAttribute)pInfo.GetCustomAttribute(tCanBeAttr);
+                        if (canBeTypes != null)
+                        {
+                            fldDescribtion.CanBeTypes = canBeTypes.AvailibleTypes;
+                        }
                         props.Add(pInfo.Name, fldDescribtion);
                     }
                     entityDescribtor.TableFields = props;
@@ -450,6 +412,8 @@ namespace Microsoft.EntityFrameworkCore
                         }
                     }
                     contextEntities.Add(prop.Name, entityDescribtor);
+                    entityTypes.Add(entityType, prop.Name);
+                    entityTypeNames.Add(entityType.FullName, entityType);
                     if (!existingTableNames.ContainsKey(prop.Name))
                     {
                         existingTableNames.Add(prop.Name, entityDescribtor);
@@ -457,8 +421,9 @@ namespace Microsoft.EntityFrameworkCore
                     }
                 }
             }
-            SaveExistingNames(currentInfoPath);
+            XMLUtils.SaveExistingNames(currentInfoPath, contextEntities);
         }
+
         /// <summary>
         /// Create fluid names for each entity and field.
         /// </summary>
@@ -536,9 +501,13 @@ namespace Microsoft.EntityFrameworkCore
                         var VConverter = contextEntities.Values.FirstOrDefault(v => v.EntityType == pName.Value.Type);
                         if (VConverter != null && !pName.Value.NoValueConverter)
                         {
-
                             (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(VConverter.ValueConverter);
                         }
+                    }
+                    // can be types
+                    if (pName.Value.CanBeTypes != null && pName.Value.CanBeTypes.Count() > 0)
+                    {
+                        (eB as EntityTypeBuilder).Property(pName.Key).HasConversion(GetConverterJSON(context, pName.Value.CanBeTypes));
                     }
                 }
                 // Indexes
@@ -548,6 +517,18 @@ namespace Microsoft.EntityFrameworkCore
                 }
             }
             return modelBuilder;
+        }
+        /// <summary>
+        /// Create fluid names for each entity and field with json serializations options.
+        /// </summary>
+        /// <param name="modelBuilder">The <see cref="ModelBuilder"/> to enable fluid names feature.</param>
+        /// <param name="context">The <see cref="DbContext"/> Instance of you DBContext to be configured.</param>
+        /// <param name="jsonSerializerOptions">Options for json serialization for variable types</param>
+        /// <returns>The <see cref="ModelBuilder"/> had enabled fluid names feature.</returns>
+        public static ModelBuilder CreateFluidNames(this ModelBuilder modelBuilder, DbContext context, JsonSerializerOptions jsonSerializerOptions)
+        {
+            _jsonSerializerOptions = jsonSerializerOptions;
+            return CreateFluidNames(modelBuilder, context);
         }
     }
 }
