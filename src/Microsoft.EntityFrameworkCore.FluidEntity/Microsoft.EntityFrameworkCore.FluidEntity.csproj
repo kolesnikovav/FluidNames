@@ -11,7 +11,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/kolesnikovav/FluidNames.git</RepositoryUrl>
-    <Description>FluidNames is the Entity Framework Core plugin for create some enhancements in your EF Core database context.</Description>       
+    <Description>FluidNames is the Entity Framework Core plugin for create some enhancements in your EF Core database context.</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" Version="2019.1.3" />

@@ -13,6 +13,8 @@ FluidNames is the Entity Framework Core plugin for create some enhancements in y
 - Adds the ability to store several data types in one field.
 - Adds some attributes for use instead of using Fluent API.
 
+### ValueConverter:
+
 ```csharp
     public class AnimalOwner
     {
@@ -24,6 +26,26 @@ FluidNames is the Entity Framework Core plugin for create some enhancements in y
     {
         //... you code ...//
         public AnimalOwner Owner {get;set;} // This is valid Type, because of ValueConverter is present!
+    }
+```
+You can disable autocreate ``` ValueConverter ``` for entity/property by setting ```[NoValueConverter]``` attribute.
+
+### Variable property type:
+If entity property can be several types, you can describe this property as object type.
+This plugin understands it, and create Value converter for this case. In database, this property will store as JSON string.
+If this value is reference, only key of referenced entity will be store.
+
+```csharp
+    public class AnimalOwner
+    {
+        [Key]
+        public Guid Id {get;set;}
+        public string Name {get;set;}
+    }
+    public class Dog
+    {
+        //... you code ...//
+        public object Owner {get;set;} // You can store any data in this property
     }
 ```
 You can disable autocreate ``` ValueConverter ``` for entity/property by setting ```[NoValueConverter]``` attribute.
